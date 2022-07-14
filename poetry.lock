@@ -141,7 +141,7 @@ numpy = "*"
 
 [[package]]
 name = "cmd2"
-version = "2.4.1"
+version = "2.4.2"
 description = "cmd2 - quickly build feature-rich and user-friendly interactive command line applications in Python"
 category = "main"
 optional = false
@@ -219,7 +219,7 @@ graph = ["objgraph (>=1.7.2)"]
 
 [[package]]
 name = "fabrics"
-version = "0.3.1"
+version = "0.3.2"
 description = "Optimization fabrics in python."
 category = "main"
 optional = false
@@ -1062,7 +1062,7 @@ telegram = ["requests"]
 
 [[package]]
 name = "trimesh"
-version = "3.12.7"
+version = "3.12.8"
 description = "Import, export, process, analyze and view triangular meshes."
 category = "main"
 optional = false
@@ -1072,9 +1072,9 @@ python-versions = "*"
 numpy = "*"
 
 [package.extras]
-all = ["lxml", "glooey", "setuptools", "scipy", "meshio", "triangle", "colorlog", "scikit-image", "xatlas", "xxhash", "msgpack", "mapbox-earcut", "rtree", "jsonschema", "pycollada", "python-fcl", "pyglet", "networkx", "chardet", "pillow", "psutil", "svg.path", "requests", "sympy", "shapely"]
-easy = ["lxml", "rtree", "xxhash", "setuptools", "msgpack", "jsonschema", "scipy", "pycollada", "pyglet", "networkx", "chardet", "pillow", "colorlog", "svg.path", "requests", "sympy", "shapely"]
-test = ["pyinstrument", "ezdxf", "coveralls", "pytest-cov", "pytest"]
+all = ["colorlog", "pycollada", "lxml", "sympy", "triangle", "networkx", "scikit-image", "python-fcl", "shapely", "requests", "chardet", "pillow", "meshio", "setuptools", "xxhash", "pyglet", "rtree", "scipy", "psutil", "mapbox-earcut", "glooey", "svg.path", "msgpack", "jsonschema", "xatlas"]
+easy = ["colorlog", "rtree", "scipy", "pycollada", "lxml", "sympy", "networkx", "svg.path", "msgpack", "shapely", "requests", "chardet", "pillow", "jsonschema", "setuptools", "xxhash", "pyglet"]
+test = ["ezdxf", "pytest-cov", "pytest", "pyinstrument", "coveralls"]
 
 [[package]]
 name = "typed-ast"
@@ -1266,10 +1266,7 @@ cmaes = [
     {file = "cmaes-0.8.2-py3-none-any.whl", hash = "sha256:9c4127be8942da3ac6857a7564d18a4a655462d77aa2d551a8e88063b23e0699"},
     {file = "cmaes-0.8.2.tar.gz", hash = "sha256:1c04ba23ded925ef13b96f42cfbd667a905ea5b80754c750e6448b9fcda96a5d"},
 ]
-cmd2 = [
-    {file = "cmd2-2.4.1-py3-none-any.whl", hash = "sha256:e6f49b0854b6aec2f20073bae99f1deede16c24b36fde682045d73c80c4cfb51"},
-    {file = "cmd2-2.4.1.tar.gz", hash = "sha256:f3b0467daca18fca0dc7838de7726a72ab64127a018a377a86a6ed8ebfdbb25f"},
-]
+cmd2 = []
 colorama = [
     {file = "colorama-0.4.5-py2.py3-none-any.whl", hash = "sha256:854bf444933e37f5824ae7bfc1e98d5bce2ebe4160d46b5edf346a89358e99da"},
     {file = "colorama-0.4.5.tar.gz", hash = "sha256:e6c6b4334fc50988a639d9b98aa429a0b57da6e17b9a44f0451f930b6967b7a4"},
@@ -2005,10 +2002,7 @@ tqdm = [
     {file = "tqdm-4.64.0-py2.py3-none-any.whl", hash = "sha256:74a2cdefe14d11442cedf3ba4e21a3b84ff9a2dbdc6cfae2c34addb2a14a5ea6"},
     {file = "tqdm-4.64.0.tar.gz", hash = "sha256:40be55d30e200777a307a7585aee69e4eabb46b4ec6a4b4a5f2d9f11e7d5408d"},
 ]
-trimesh = [
-    {file = "trimesh-3.12.7-py3-none-any.whl", hash = "sha256:15e6cf4d3a7dd4560cb90f4eeadfa58f96b9dac38a01173ab40d15f2ab1b863a"},
-    {file = "trimesh-3.12.7.tar.gz", hash = "sha256:4b1bafd1035c44b5679d3845c6f0d027ca55dab8607580a5eced76a3f5096d42"},
-]
+trimesh = []
 typed-ast = [
     {file = "typed_ast-1.5.4-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:669dd0c4167f6f2cd9f57041e03c3c2ebf9063d0757dc89f79ba1daa2bfca9d4"},
     {file = "typed_ast-1.5.4-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:211260621ab1cd7324e0798d6be953d00b74e0428382991adfddb352252f1d62"},
