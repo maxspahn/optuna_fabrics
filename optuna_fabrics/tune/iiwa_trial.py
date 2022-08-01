@@ -12,7 +12,8 @@ from MotionPlanningEnv.sphereObstacle import SphereObstacle
 import numpy as np
 from optuna_fabrics.planner.symbolic_planner import SymbolicFabricPlanner
 from fabrics.planner.serialized_planner import SerializedFabricPlanner
-import urdfenvs.panda_reacher 
+
+import urdfenvs.generic_urdf_reacher
 
 from forwardkinematics.urdfFks.generic_urdf_fk import GenericURDFFk
 
@@ -21,18 +22,19 @@ import quaternionic
  
 
 
-class PandaTrial(FabricsTrial):
+class IiwaTrial(FabricsTrial):
 
     def __init__(self, weights=None):
         super().__init__(weights=weights)
         self._degrees_of_freedom = 7
-        self._q0 = np.array([0.0, -1.0, 0.0, -1.501, 0.0, 1.8675, 0.0])
-        self._qdot0 = np.zeros(7)
-        self._collision_links = ['panda_link8', 'panda_link4', "panda_link7", "panda_link5", "panda_hand"]
+        self._q0 = np.array([0, -0.6, 0.0, -1.1, 0.00, 0, 0.0])
+        self._qdot0 = np.zeros(self._degrees_of_freedom)
+        self._collision_links = ["iiwa_link_3", "iiwa_link_5", "iiwa_link_7"]
         self._absolute_path = os.path.dirname(os.path.abspath(__file__))
-        with open(self._absolute_path + "/panda_vacuum.urdf", "r") as file:
+        self._urdf_file = self._absolute_path + "/iiwa7.urdf"
+        with open(self._urdf_file, "r") as file:
             self._urdf = file.read()
-        self._generic_fk = GenericURDFFk(self._urdf, 'panda_link0', 'panda_hand')
+        self._generic_fk = GenericURDFFk(self._urdf, 'iiwa_link_0', 'iiwa_link_ee')
 
     def initialize_environment(self, render=True, shuffle=True):
         """
@@ -42,7 +44,10 @@ class PandaTrial(FabricsTrial):
         env.add_obstacle(obstacles[1])
         steps the simulation once.
         """
-        env = gym.make("panda-reacher-acc-v0", dt=0.05, render=render)
+        env = gym.make(
+            "generic-urdf-reacher-acc-v0", dt=0.05, urdf=self._urdf_file, render=render
+        )
+
         return env
 
 
@@ -57,7 +62,7 @@ class PandaTrial(FabricsTrial):
         can be found. Commented by default.
 
         """
-        serialize_file = self._absolute_path + "/planners/panda_planner.pkl"
+        serialize_file = self._absolute_path + "/planners/iiwa_planner.pkl"
         if os.path.exists(serialize_file):
             planner = SerializedFabricPlanner(serialize_file)
             return planner
@@ -85,18 +90,19 @@ class PandaTrial(FabricsTrial):
             self._degrees_of_freedom,
             robot_type,
             urdf=self._urdf,
-            root_link='panda_link0',
-            end_link=['panda_hand'],
+            root_link='iiwa_link_0',
+            end_link=['iiwa_link_ee'],
         )
-        panda_limits = [
-                [-2.8973, 2.8973],
-                [-1.7628, 1.7628],
-                [-2.8974, 2.8973],
-                [-3.0718, -0.0698],
-                [-2.8973, 2.8973],
-                [-0.0175, 3.7525],
-                [-2.8973, 2.8973]
-            ]
+        iiwa_limits= [
+            [-2.96705973, 2.96705973],
+            [-2.0943951, 2.0943951],
+            [-2.96705973, 2.96705973],
+            [-2.0943951, 2.0943951],
+            [-2.96705973, 2.96705973],
+            [-2.0943951, 2.0943951],
+            [-3.05432619, 3.05432619],
+        ]
+
         self_collision_pairs = {}
         # The planner hides all the logic behind the function set_components.
         goal = self.dummy_goal()
@@ -105,7 +111,7 @@ class PandaTrial(FabricsTrial):
             self_collision_pairs,
             goal,
             number_obstacles=self._number_obstacles,
-            limits=panda_limits,
+            limits=iiwa_limits,
         )
         planner.concretize()
         planner.serialize(serialize_file)
@@ -147,18 +153,15 @@ class PandaTrial(FabricsTrial):
         arguments['beta_distant_damper'] = np.array([params['beta_distant_damper']])
         arguments['radius_shift_damper'] = np.array([params['radius_shift_damper']])
         arguments['base_inertia'] = np.array([params['base_inertia']])
-        arguments['ex_factor_damper'] = np.array([params['ex_factor']])
         for _ in range(n_steps):
             action = planner.compute_action(
                 q=ob["joint_state"]['position'],
                 qdot=ob["joint_state"]['velocity'],
-                weight_goal_0=np.array([1.0]),
-                weight_goal_1=np.array([5.0]),
-                radius_body_panda_link4=np.array([0.1]),
-                radius_body_panda_link5=np.array([0.08]),
-                radius_body_panda_link7=np.array([0.08]),
-                radius_body_panda_link8=np.array([0.1]),
-                radius_body_panda_hand=np.array([0.1]),
+                weight_goal_0=np.array([1.00]),
+                weight_goal_1=np.array([5.00]),
+                radius_body_iiwa_link_3=np.array([0.10]),
+                radius_body_iiwa_link_5=np.array([0.10]),
+                radius_body_iiwa_link_7=np.array([0.08]),
                 **arguments,
             )
             if np.linalg.norm(action) < 1e-5 or np.linalg.norm(action) > 1e3:
@@ -174,7 +177,7 @@ class PandaTrial(FabricsTrial):
             x_old = q
             distance_to_goal += self.evaluate_distance_to_goal(q)
             distance_to_obstacles = []
-            fk = self._generic_fk.fk(q, 'panda_link0', 'panda_hand', positionOnly=True)
+            fk = self._generic_fk.fk(q, 'iiwa_link_0', 'iiwa_link_7', positionOnly=True)
             for obst in obstacles:
                 distance_to_obstacles.append(np.linalg.norm(np.array(obst.position()) - fk))
             distance_to_obstacle += np.min(distance_to_obstacles)

@@ -1,10 +1,10 @@
 import logging
+import datetime
 import optuna
 import joblib
 import csv
 import argparse
 from optuna.visualization import plot_optimization_history, plot_param_importances
-import urdfenvs.panda_reacher 
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -49,12 +49,12 @@ class FabricsStudy(object):
     def tune(self):
         # Let us minimize the objective function above.
         render = False
-        (env, obstacles, goal, initial_observation) = self._trial.initialize_environment(render=render, shuffle=self._shuffle)
+        env = self._trial.initialize_environment(render=render, shuffle=self._shuffle)
         q0 = self._trial.q0()
-        planner = self._trial.set_planner(goal)
+        planner = self._trial.set_planner()
         logging.info(f"Running {self._number_trials} trials...")
         self._study.optimize(
-            lambda trial: self._trial.objective(trial, planner, obstacles, goal, env, q0),
+            lambda trial: self._trial.objective(trial, planner, env, q0),
             n_trials=self._number_trials,
         )
         #print("Best value: {} (params: {})\n".format(study.best_value, study.best_params))
@@ -71,26 +71,27 @@ class FabricsStudy(object):
             params = self._study.best_params
         print(f"Selected parameters: {params}")
         total_costs = []
+        env = self._trial.initialize_environment(render=self._render)
+        planner = self._trial.set_planner()
         for i in range(self._number_trials):
-            (env, obstacles, goal, _) = self._trial.initialize_environment(render=self._render, shuffle=self._shuffle)
             q0 = self._trial.q0()
             ob = env.reset(pos=q0)
-            planner = self._trial.set_planner(goal)
+            env, obstacles, goal = self._trial.shuffle_env(env)
             for obst in obstacles:
                 env.add_obstacle(obst)
-            env.add_goal(goal)
             costs = self._trial.run(params, planner, obstacles, ob, goal, env)
             logging.info(f"Finished test run {i} with cost: {costs}")
             total_costs.append(costs)
-        with open("result.csv", "w") as f:
+        timeStamp = "{:%Y%m%d_%H%M%S}".format(datetime.datetime.now())
+        with open(f"result_{timeStamp}.csv", "w") as f:
             writer = csv.writer(f)
             for cost in total_costs:
                 writer.writerow([cost])
         logging.info(f"Finished test run with average costs: {np.mean(total_costs)}")
 
     def show_history(self):
-            #fig = plot_optimization_history(self._study)
-            fig = plot_param_importances(self._study)
+            fig = plot_optimization_history(self._study)
+            #fig = plot_param_importances(self._study)
             fig.update_layout(
                 font=dict(
                     family="Serif",

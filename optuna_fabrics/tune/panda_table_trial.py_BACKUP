@@ -15,26 +15,70 @@ from fabrics.planner.serialized_planner import SerializedFabricPlanner
 from forwardkinematics.urdfFks.generic_urdf_fk import GenericURDFFk
 
 from optuna_fabrics.tune.fabrics_trial import FabricsTrial
-import quaternionic
 from optuna_fabrics.tune.panda_trial import PandaTrial
+import quaternionic
  
 
 logging.basicConfig(level=logging.INFO)
-#optuna.logging.set_verbosity(optuna.logging.INFO)
+optuna.logging.set_verbosity(optuna.logging.INFO)
 
+class PandaTableTrial(PandaTrial):
 
-class PandaReachTrial(PandaTrial):
-
-    def __init__(self, weights = None):
-        super().__init__(weights = weights)
-        self._q0 = np.array([0.0, -1.0, 0.0, -1.501, 0.0, 1.8675, 0.0])
-        self._qdot0 = np.zeros(7)
+    def __init__(self, weights=None):
         self._number_obstacles = 5
-        self._collision_links = ['panda_link8', 'panda_link4', "panda_hand"]
-        self._absolute_path = os.path.dirname(os.path.abspath(__file__))
-        with open(self._absolute_path + "/panda_vacuum.urdf", "r") as file:
-            self._urdf = file.read()
-        self._generic_fk = GenericURDFFk(self._urdf, 'panda_link0', ['panda_vacuum', 'panda_vacuum_2'])
+        super().__init__(weights)
+
+    def shuffle_env(self, env, shuffle=True):
+        static_obst_dict = {
+            "dim": 3,
+            "type": "sphere",
+            "geometry": {"position": [1000.0, 0.5, 0.1], "radius": 0.1},
+            "low": {'position': [0.2, -0.7, 0.0], 'radius': 0.05},
+            "high": {'position': [1.0, 0.7, 0.4], 'radius': 0.1},
+        }
+        obstacles = []
+        for i in range(self._number_obstacles):
+            obst_i = SphereObstacle(name="staticObst", contentDict=static_obst_dict)
+            if shuffle:
+                obst_i.shuffle()
+            obstacles.append(obst_i)
+        goal_dict = {
+            "subgoal0": {
+                "m": 3,
+                "w": 1.0,
+                "prime": True,
+                "indices": [0, 1, 2],
+                "parent_link": self._sub_goal_0_links[0],
+                "child_link": self._sub_goal_0_links[1],
+                "desired_position": [0.5, 0.0, 0.1],
+                "epsilon": 0.05,
+                "low": [0.4, -0.5, 0.05],
+                "high": [0.8, 0.5, 0.05],
+                "type": "staticSubGoal",
+            },
+            "subgoal1": {
+                "m": 3,
+                "w": 3.0,
+                "prime": False,
+                "indices": [0, 1, 2],
+                "parent_link": self._sub_goal_1_links[0],
+                "child_link": self._sub_goal_1_links[1],
+                "desired_position": [0.0, 0.0, 0.107],
+                #"angle": [0, -np.sqrt(2), 0.0, np.sqrt(2)], # facing downwords
+                "angle": [0, 1, 0, 0],
+                "low": [0.0, 0.0, 0.107],
+                "high": [0.0, 0.0, 0.107],
+                "epsilon": 0.05,
+                "type": "staticSubGoal",
+            }
+        }
+        goal = GoalComposition(name="goal", contentDict=goal_dict)
+        if shuffle:
+            goal.shuffle()
+        env.add_goal(goal)
+        for obst in obstacles:
+            env.add_obstacle(obst)
+        return env, obstacles, goal
 
     def initialize_environment(self, render=True, shuffle=True):
         """
@@ -45,42 +89,8 @@ class PandaReachTrial(PandaTrial):
         steps the simulation once.
         """
         env = gym.make("panda-reacher-acc-v0", dt=0.05, render=render)
+        env, obstacles, goal = self.shuffle_env(env)
         initial_observation = env.reset(pos=self._q0)
-        static_obst_dict = {
-            "dim": 3,
-            "type": "sphere",
-            "geometry": {"position": [1.0, 0.5, 0.4], "radius": 0.1},
-            "low": {'position': [0.2, -0.8, 0.0], 'radius': 0.05},
-            "high": {'position': [1.0, 0.8, 1.0], 'radius': 0.2},
-        }
-        obstacles = []
-        for i in range(self._number_obstacles):
-            obst_i = SphereObstacle(name="staticObst", contentDict=static_obst_dict)
-            if shuffle:
-                obst_i.shuffle()
-            obstacles.append(obst_i)
-        # Definition of the obstacle.
-        goal_dict = {
-            "subgoal0": {
-                "m": 3,
-                "w": 1.0,
-                "prime": True,
-                "indices": [0, 1, 2],
-                "parent_link": "panda_link0",
-                "child_link": "panda_hand",
-                "desired_position": [0.5, 0.0, 0.5],
-                "epsilon": 0.05,
-                "low": [0.3, -0.5, 0.1],
-                "high": [0.8, 0.5, 0.9],
-                "type": "staticSubGoal",
-            },
-        }
-        goal = GoalComposition(name="goal", contentDict=goal_dict)
-        if shuffle:
-            goal.shuffle()
-        env.add_goal(goal)
-        for obst in obstacles:
-            env.add_obstacle(obst)
         return (env, obstacles, goal, initial_observation)
 
 
@@ -95,11 +105,10 @@ class PandaReachTrial(PandaTrial):
         can be found. Commented by default.
 
         """
-        serialize_file = self._absolute_path + "/planners/panda_reach_planner.pkl"
+        serialize_file = self._absolute_path + "/planners/panda_table_planner.pkl"
         if os.path.exists(serialize_file):
             planner = SerializedFabricPlanner(serialize_file)
             return planner
-        degrees_of_freedom = 7
         robot_type = "panda"
 
         ## Optional reconfiguration of the planner
@@ -121,7 +130,7 @@ class PandaReachTrial(PandaTrial):
         #     damper=damper,
         # )
         planner = SymbolicFabricPlanner(
-            degrees_of_freedom,
+            self._degrees_of_freedom,
             robot_type,
             urdf=self._urdf,
             root_link='panda_link0',
@@ -144,13 +153,30 @@ class PandaReachTrial(PandaTrial):
         planner.serialize(serialize_file)
         return planner
 
+    def evaluate_distance_to_goal(self, q: np.ndarray):
+        sub_goal_0_position = np.array(self._goal.subGoals()[0].position())
+        fk = self._generic_fk.fk(q, self._goal.subGoals()[0].parentLink(), self._goal.subGoals()[0].childLink(), positionOnly=True)
+        return np.linalg.norm(sub_goal_0_position - fk) / self._initial_distance_to_goal_1
 
     def set_goal_arguments(self, q0: np.ndarray, goal:GoalComposition):
+        self._goal = goal
         arguments = {}
         sub_goal_0_position = np.array(goal.subGoals()[0].position())
+        fk_0 = self._generic_fk.fk(q0, goal.subGoals()[0].parentLink(), goal.subGoals()[0].childLink(), positionOnly=True)
+        self._initial_distance_to_goal_0 = np.linalg.norm(sub_goal_0_position - fk_0)
+        fk_1_0 = self._generic_fk.fk(q0, "panda_link0", goal.subGoals()[1].parentLink(), positionOnly=True)
+        fk_1_1 = self._generic_fk.fk(q0, "panda_link0", goal.subGoals()[1].childLink(), positionOnly=True)
+        self._initial_distance_to_goal_1 = np.linalg.norm(fk_1_0[0:2] - fk_1_1[0:2])
+        sub_goal_1_position = np.array(goal.subGoals()[1].position())
+        sub_goal_1_quaternion = quaternionic.array(goal.subGoals()[1].angle())
+        sub_goal_1_rotation_matrix = sub_goal_1_quaternion.to_rotation_matrix
+        # sub_goal_0_position = np.array(goal.subGoals()[0].position())
+        sub_goal_0_position = np.array(goal.subGoals()[0].position())
         arguments['x_goal_0'] = sub_goal_0_position
-        fk = self._generic_fk.fk(q0, goal.subGoals()[0].parentLink(), goal.subGoals()[0].childLink(), positionOnly=True)
-        initial_distance_to_goal = np.linalg.norm(sub_goal_0_position - fk)
-        return arguments, initial_distance_to_goal
+        arguments['x_goal_1'] = sub_goal_1_position
+        arguments['angle_goal_1'] = sub_goal_1_rotation_matrix
+        return arguments, self._initial_distance_to_goal_0
+
+
 
 

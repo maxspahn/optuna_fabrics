@@ -9,13 +9,11 @@ python = "^3.6.2,<3.10"
 optuna = "^2.10.0"
 plotly = "^5.8.0"
 fabrics = {path = "../fabrics"}
-motion_planning_scenes = {git = "https://git@github.com/maxspahn/motion_planning_scenes.git", rev = "main"}
-planarenvs = {git = "https://git@github.com/maxspahn/gym_envs_planar.git", rev = "master"}
-urdfenvs = {git = "https://git@github.com/maxspahn/gym_envs_urdf.git", rev = "master"}
-forwardkinematics = {git = "https://git@github.com/maxspahn/forwardKinematics.git", rev = "release-1.0"}
 joblib = "^1.1.0"
 matplotlib = "^3.1"
 sklearn = "^0.0"
+planarenvs = "^1.0.1"
+urdfenvs = {path = "../gym/env/urdfEnvs"}
 
 [tool.poetry.dev-dependencies]
 

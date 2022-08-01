@@ -1,11 +1,11 @@
-from fabrics.planner.parameterized_planner import ParameterizedFabricPlanner
+from fabrics.planner.non_holonomic_parameterized_planner import NonHolonomicParameterizedFabricPlanner
 from casadi import SX
 
 
 def symbolic(name, dim):
     return SX.sym(name, dim)
 
-class SymbolicFabricPlanner(ParameterizedFabricPlanner):
+class NonHolonomicSymbolicFabricPlanner(NonHolonomicParameterizedFabricPlanner):
     def __init__(self, dof: int, robot_type: str, **kwargs):
         collision_geometry: str = (
             "-sym('k_geo') / (x ** sym('exp_geo')) * xdot ** 2"
@@ -51,14 +51,9 @@ class SymbolicFabricPlanner(ParameterizedFabricPlanner):
         damper_beta: str = (
             "0.5 * (ca.tanh(-sym('alpha_b') * (ca.norm_2(x) - sym('radius_shift'))) + 1) * sym('beta_close') + sym('beta_distant') + ca.fmax(0, sym('a_ex') - sym('a_le'))"
         )
-        damper_eta: str = (
-            "0.5 * (ca.tanh(-0.5 * sym('ex_lag') * (1 - sym('ex_factor')) - 0.5) + 1)"
-        )
-
 
         kwargs['base_energy'] = base_energy
         kwargs['damper_beta'] = damper_beta
-        kwargs['damper_eta'] = damper_eta
         kwargs['collision_finsler'] = collision_finsler
         kwargs['collision_geometry'] = collision_geometry
         kwargs['self_collision_finsler'] = self_collision_finsler

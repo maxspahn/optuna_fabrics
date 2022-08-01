@@ -10,9 +10,9 @@ from MotionPlanningGoal.goalComposition import GoalComposition
 from MotionPlanningEnv.sphereObstacle import SphereObstacle
 
 import numpy as np
-from optuna_fabrics.planner.symbolic_planner import SymbolicFabricPlanner
+from optuna_fabrics.planner.nonholonomic_symbolic_planner import NonHolonomicSymbolicFabricPlanner
 from fabrics.planner.serialized_planner import SerializedFabricPlanner
-import urdfenvs.panda_reacher 
+import urdfenvs.albert_reacher
 
 from forwardkinematics.urdfFks.generic_urdf_fk import GenericURDFFk
 
@@ -21,18 +21,18 @@ import quaternionic
  
 
 
-class PandaTrial(FabricsTrial):
+class AlbertTrial(FabricsTrial):
 
     def __init__(self, weights=None):
         super().__init__(weights=weights)
-        self._degrees_of_freedom = 7
-        self._q0 = np.array([0.0, -1.0, 0.0, -1.501, 0.0, 1.8675, 0.0])
-        self._qdot0 = np.zeros(7)
-        self._collision_links = ['panda_link8', 'panda_link4', "panda_link7", "panda_link5", "panda_hand"]
+        self._degrees_of_freedom = 10
+        self._q0 = np.array([-2, 0, 0, 0.0, -1.0, 0.0, -1.501, 0.0, 1.8675, 0.0])
+        self._qdot0 = np.zeros(9)
+        self._collision_links = ['base_link', 'panda_link8', 'panda_link4', "panda_link7", "panda_link5", "panda_hand"]
         self._absolute_path = os.path.dirname(os.path.abspath(__file__))
-        with open(self._absolute_path + "/panda_vacuum.urdf", "r") as file:
+        with open(self._absolute_path + "/albert_fk.urdf", "r") as file:
             self._urdf = file.read()
-        self._generic_fk = GenericURDFFk(self._urdf, 'panda_link0', 'panda_hand')
+        self._generic_fk = GenericURDFFk(self._urdf, 'origin', 'panda_hand')
 
     def initialize_environment(self, render=True, shuffle=True):
         """
@@ -42,7 +42,7 @@ class PandaTrial(FabricsTrial):
         env.add_obstacle(obstacles[1])
         steps the simulation once.
         """
-        env = gym.make("panda-reacher-acc-v0", dt=0.05, render=render)
+        env = gym.make("albert-reacher-acc-v0", dt=0.05, render=render)
         return env
 
 
@@ -57,11 +57,11 @@ class PandaTrial(FabricsTrial):
         can be found. Commented by default.
 
         """
-        serialize_file = self._absolute_path + "/planners/panda_planner.pkl"
+        serialize_file = self._absolute_path + "/planners/albert_planner.pkl"
         if os.path.exists(serialize_file):
             planner = SerializedFabricPlanner(serialize_file)
             return planner
-        robot_type = "panda"
+        robot_type = "albert"
 
         ## Optional reconfiguration of the planner
         # base_inertia = 0.03
@@ -81,14 +81,17 @@ class PandaTrial(FabricsTrial):
         #     attractor_potential=attractor_potential,
         #     damper=damper,
         # )
-        planner = SymbolicFabricPlanner(
+        planner = NonHolonomicSymbolicFabricPlanner(
             self._degrees_of_freedom,
             robot_type,
             urdf=self._urdf,
-            root_link='panda_link0',
+            root_link='origin',
             end_link=['panda_hand'],
         )
-        panda_limits = [
+        albert_limits = [
+                [-5, 5],
+                [-5, 5],
+                [-np.pi * 4, np.pi * 4],
                 [-2.8973, 2.8973],
                 [-1.7628, 1.7628],
                 [-2.8974, 2.8973],
@@ -105,18 +108,73 @@ class PandaTrial(FabricsTrial):
             self_collision_pairs,
             goal,
             number_obstacles=self._number_obstacles,
-            limits=panda_limits,
+            limits=albert_limits,
         )
         planner.concretize()
         planner.serialize(serialize_file)
         return planner
 
-    @abstractmethod
-    def set_goal_arguments(self, q0: np.ndarray, goal: GoalComposition):
-        pass
+    def manual_parameters(self) -> dict:
+        return {
+            "exp_geo_obst_leaf": 3,
+            "k_geo_obst_leaf": 0.1,
+            "exp_fin_obst_leaf": 3,
+            "k_fin_obst_leaf": 0.1,
+            "exp_geo_limit_leaf": 2,
+            "k_geo_limit_leaf": 0.1,
+            "exp_fin_limit_leaf": 3,
+            "k_fin_limit_leaf": 0.05,
+            "weight_attractor": 2,
+            "base_inertia": 0.2,
+            "alpha_b_damper" : 0.5,
+            "beta_distant_damper" : 0.01,
+            "beta_close_damper" : 6.5,
+            "radius_shift_damper" : 0.2,
+            "m_arm" : 1.0,
+            "m_base" : 1.0,
+            "m_rot": 0.1,
+        }
 
 
-    def run(self, params, planner: SymbolicFabricPlanner, obstacles, ob, goal: GoalComposition, env, n_steps=1000):
+    def sample_fabrics_params_uniform(self, trial: optuna.trial.Trial) -> Dict[str, Any]:
+        exp_geo_obst_leaf = trial.suggest_int("exp_geo_obst_leaf", 1, 5, log=False)
+        k_geo_obst_leaf = trial.suggest_float("k_geo_obst_leaf", 0.1, 1, log=True)
+        exp_fin_obst_leaf = trial.suggest_int("exp_fin_obst_leaf", 1, 5, log=False)
+        k_fin_obst_leaf = trial.suggest_float("k_fin_obst_leaf", 0.1, 1, log=True)
+        exp_geo_limit_leaf = trial.suggest_int("exp_geo_limit_leaf", 1, 1, log=False)
+        k_geo_limit_leaf = trial.suggest_float("k_geo_limit_leaf", 0.01, 0.2, log=True)
+        exp_fin_limit_leaf = trial.suggest_int("exp_fin_limit_leaf", 1, 5, log=False)
+        k_fin_limit_leaf = trial.suggest_float("k_fin_limit_leaf", 0.01, 0.2, log=True)
+        #weight_attractor = trial.suggest_float("weight_attractor", 1.0, 2.0, log=False)
+        base_inertia = trial.suggest_float("base_inertia", 0.01, 1.0, log=False)
+        alpha_b_damper = trial.suggest_float('alpha_b_damper', 0, 1.0, log=False)
+        beta_distant_damper = trial.suggest_float('beta_distant_damper', 0, 1.0, log=False)
+        beta_close_damper = trial.suggest_float('beta_close_damper', 5, 20.0, log=False)
+        radius_shift_damper = trial.suggest_float('radius_shift_damper', 0.01, 0.1, log=False)
+        m_arm = trial.suggest_float("m_arm", 0.10, 5, log=False)
+        m_base = trial.suggest_float("m_base", 0.10, 5, log=False)
+        m_rot = trial.suggest_float("m_rot", 0.01, 1.0, log=False)
+        return {
+            "exp_geo_obst_leaf": exp_geo_obst_leaf,
+            "k_geo_obst_leaf": k_geo_obst_leaf,
+            "exp_fin_obst_leaf": exp_fin_obst_leaf,
+            "k_fin_obst_leaf": k_fin_obst_leaf,
+            "exp_geo_limit_leaf": exp_geo_limit_leaf,
+            "k_geo_limit_leaf": k_geo_limit_leaf,
+            "exp_fin_limit_leaf": exp_fin_limit_leaf,
+            "k_fin_limit_leaf": k_fin_limit_leaf,
+            #"weight_attractor": weight_attractor,
+            "base_inertia": base_inertia,
+            "alpha_b_damper": alpha_b_damper,
+            "beta_close_damper": beta_close_damper,
+            "radius_shift_damper": radius_shift_damper,
+            "beta_distant_damper": beta_distant_damper,
+            "m_arm": m_arm,
+            "m_base": m_base,
+            "m_rot": m_rot,
+        }
+
+    def run(self, params, planner: NonHolonomicSymbolicFabricPlanner, obstacles, ob, goal: GoalComposition, env, n_steps=1000):
         # Start the simulation
         logging.info("Starting simulation")
         q0 = ob['joint_state']['position']
@@ -147,13 +205,20 @@ class PandaTrial(FabricsTrial):
         arguments['beta_distant_damper'] = np.array([params['beta_distant_damper']])
         arguments['radius_shift_damper'] = np.array([params['radius_shift_damper']])
         arguments['base_inertia'] = np.array([params['base_inertia']])
-        arguments['ex_factor_damper'] = np.array([params['ex_factor']])
+        arguments['m_arm'] = np.array([params['m_arm']])
+        arguments['m_base_x'] = np.array([params['m_base']])
+        arguments['m_base_y'] = np.array([params['m_base']])
+        arguments['m_rot'] = np.array([params['m_rot']])
         for _ in range(n_steps):
+            qudot = np.array([ob['joint_state']['forward_velocity'][0], ob['joint_state']['velocity'][2]])
+            qudot = np.concatenate((qudot, ob['joint_state']['velocity'][3:]))
             action = planner.compute_action(
                 q=ob["joint_state"]['position'],
                 qdot=ob["joint_state"]['velocity'],
+                qudot=qudot,
                 weight_goal_0=np.array([1.0]),
                 weight_goal_1=np.array([5.0]),
+                radius_body_base_link=np.array([0.5]),
                 radius_body_panda_link4=np.array([0.1]),
                 radius_body_panda_link5=np.array([0.08]),
                 radius_body_panda_link7=np.array([0.08]),
