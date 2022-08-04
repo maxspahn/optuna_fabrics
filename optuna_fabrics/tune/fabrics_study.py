@@ -20,6 +20,7 @@ class FabricsStudy(object):
         self.initialize_argument_parser()
         cli_arguments = self._parser.parse_args()
         self._trial = trial
+        self._q0 = None
         self._number_trials = cli_arguments.number_trials
         self._input_file=cli_arguments.input
         self._output_file=cli_arguments.output
@@ -81,13 +82,15 @@ class FabricsStudy(object):
                 env.add_obstacle(obst)
             costs = self._trial.run(params, planner, obstacles, ob, goal, env)
             logging.info(f"Finished test run {i} with cost: {costs}")
-            total_costs.append(costs)
+            total_costs.append(self._trial.total_costs(costs))
         timeStamp = "{:%Y%m%d_%H%M%S}".format(datetime.datetime.now())
         with open(f"result_{timeStamp}.csv", "w") as f:
             writer = csv.writer(f)
             for cost in total_costs:
-                writer.writerow([cost])
+                writer.writerow(list(cost.values()))
         logging.info(f"Finished test run with average costs: {np.mean(total_costs)}")
+
+
 
     def show_history(self):
             fig1 = plot_optimization_history(self._study)

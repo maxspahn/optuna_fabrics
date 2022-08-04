@@ -30,29 +30,22 @@ class IiwaTrial(FabricsTrial):
         self._q0 = np.array([0, -0.6, 0.0, -1.1, 0.00, 0, 0.0])
         self._qdot0 = np.zeros(self._degrees_of_freedom)
         self._collision_links = ["iiwa_link_3", "iiwa_link_5", "iiwa_link_7", "iiwa_link_ee"]
+        self._link_sizes = {
+            'iiwa_link_3': 0.1,
+            'iiwa_link_5': 0.1,
+            "iiwa_link_7": 0.08,
+            "iiwa_link_ee": 0.08,
+        }
         self._self_collision_pairs = {
             "iiwa_link_7": ['iiwa_link_3', 'iiwa_link_5']
         }
+        self._ee_link = "iiwa_link_ee"
+        self._root_link = "iiwa_link_0"
         self._absolute_path = os.path.dirname(os.path.abspath(__file__))
         self._urdf_file = self._absolute_path + "/iiwa7.urdf"
         with open(self._urdf_file, "r") as file:
             self._urdf = file.read()
-        self._generic_fk = GenericURDFFk(self._urdf, 'iiwa_link_0', 'iiwa_link_ee')
-
-    def initialize_environment(self, render=True, shuffle=True):
-        """
-        Initializes the simulation environment.
-
-        Adds obstacles and goal visualizaion to the environment based and
-        env.add_obstacle(obstacles[1])
-        steps the simulation once.
-        """
-        env = gym.make(
-            "generic-urdf-reacher-acc-v0", dt=0.05, urdf=self._urdf_file, render=render
-        )
-
-        return env
-
+        self._generic_fk = GenericURDFFk(self._urdf, self._root_link, self._ee_link)
 
     def set_planner(self):
         """
@@ -118,63 +111,4 @@ class IiwaTrial(FabricsTrial):
         planner.concretize()
         planner.serialize(serialize_file)
         return planner
-
-    @abstractmethod
-    def set_goal_arguments(self, q0: np.ndarray, goal: GoalComposition):
-        pass
-
-
-    def run(self, params, planner: SymbolicFabricPlanner, obstacles, ob, goal: GoalComposition, env, n_steps=1000):
-        # Start the simulation
-        logging.info("Starting simulation")
-        q0 = ob['joint_state']['position']
-        arguments, initial_distance_to_goal = self.set_goal_arguments(q0, goal)
-        # sub_goal_0_position = np.array(goal.subGoals()[0].position())
-        objective_value = 0.0
-        distance_to_goal = 0.0
-        distance_to_obstacle = 0.0
-        path_length = 0.0
-        x_old = q0
-        self.set_parameters(arguments, obstacles, params)
-        for _ in range(n_steps):
-            action = planner.compute_action(
-                q=ob["joint_state"]['position'],
-                qdot=ob["joint_state"]['velocity'],
-                weight_goal_0=np.array([1.00]),
-                weight_goal_1=np.array([5.00]),
-                radius_body_iiwa_link_3=np.array([0.10]),
-                radius_body_iiwa_link_5=np.array([0.10]),
-                radius_body_iiwa_link_7=np.array([0.08]),
-                radius_body_iiwa_link_ee=np.array([0.08]),
-                **arguments,
-            )
-            if np.linalg.norm(action) < 1e-5 or np.linalg.norm(action) > 1e3:
-                action = np.zeros(7)
-            warnings.filterwarnings("error")
-            try:
-                ob, *_ = env.step(action)
-            except Exception as e:
-                logging.warning(e)
-                return 100
-            q = ob['joint_state']['position']
-            path_length += np.linalg.norm(q - x_old)
-            x_old = q
-            distance_to_goal += self.evaluate_distance_to_goal(q)
-            distance_to_obstacles = []
-            fk = self._generic_fk.fk(q, 'iiwa_link_0', 'iiwa_link_7', positionOnly=True)
-            for obst in obstacles:
-                distance_to_obstacles.append(np.linalg.norm(np.array(obst.position()) - fk))
-            distance_to_obstacle += np.min(distance_to_obstacles)
-        costs = {
-            "path_length": path_length/initial_distance_to_goal,
-            "time_to_goal": distance_to_goal/n_steps,
-            "obstacles": 1/distance_to_obstacle/n_steps
-        }
-        return self.total_costs(costs)
-
-
-    def q0(self):
-        return self._q0
-
-
 

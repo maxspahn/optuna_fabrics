@@ -120,14 +120,14 @@ class RingTrial(FabricsTrial):
         goal = GoalComposition(name="goal", contentDict=goal_dict)
         env.add_goal(goal)
         # Definition of the obstacle.
-        radius_ring = 0.30
+        radius_ring = 0.27
         obstacles = []
         rotation_matrix_ring = quaternionic.array(ring_orientation).to_rotation_matrix
         whole_position = goal.primeGoal().position()
         for i in range(self._obstacle_resolution + 1):
             angle = i/self._obstacle_resolution * 2.*np.pi
             origin_position = [
-                0.0,
+                -0.05,
                 float(radius_ring * np.cos(angle)),
                 float(radius_ring * np.sin(angle)),
             ]
@@ -135,7 +135,7 @@ class RingTrial(FabricsTrial):
             static_obst_dict = {
                 "dim": 3,
                 "type": "sphere",
-                "geometry": {"position": position.tolist(), "radius": 0.1},
+                "geometry": {"position": position.tolist(), "radius": 0.08},
             }
             obstacles.append(SphereObstacle(name="staticObst", contentDict=static_obst_dict))
         for obst in obstacles:
@@ -147,9 +147,9 @@ class RingTrial(FabricsTrial):
         fk = self._generic_fk.fk(q, self._goal.subGoals()[0].parentLink(), self._goal.subGoals()[0].childLink(), positionOnly=True)
         return np.linalg.norm(sub_goal_0_position - fk) / self._initial_distance_to_goal_0 
 
-    def set_goal_arguments(self, q0: np.ndarray, goal:GoalComposition):
+
+    def set_goal_arguments(self, q0: np.ndarray, goal:GoalComposition, arguments):
         self._goal = goal
-        arguments = {}
         sub_goal_0_position = np.array(goal.subGoals()[0].position())
         sub_goal_1_position = np.array(goal.subGoals()[1].position())
         sub_goal_1_quaternion = quaternionic.array(goal.subGoals()[1].angle())
@@ -160,5 +160,7 @@ class RingTrial(FabricsTrial):
         arguments['x_goal_0'] = sub_goal_0_position
         arguments['x_goal_1'] = sub_goal_1_position
         arguments['angle_goal_1'] = sub_goal_1_rotation_matrix
-        return arguments, self._initial_distance_to_goal_0
+        arguments['weight_goal_0']=np.array([1.0])
+        arguments['weight_goal_1']=np.array([5.0])
+        return self._initial_distance_to_goal_0
 

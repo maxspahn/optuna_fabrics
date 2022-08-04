@@ -181,7 +181,7 @@ class AlbertTrial(FabricsTrial):
         arguments, initial_distance_to_goal = self.set_goal_arguments(q0, goal)
         # sub_goal_0_position = np.array(goal.subGoals()[0].position())
         objective_value = 0.0
-        distance_to_goal = 0.0
+        distances_to_goal = []
         distance_to_obstacle = 0.0
         path_length = 0.0
         x_old = q0
@@ -237,7 +237,7 @@ class AlbertTrial(FabricsTrial):
             q = ob['joint_state']['position']
             path_length += np.linalg.norm(q - x_old)
             x_old = q
-            distance_to_goal += self.evaluate_distance_to_goal(q)
+            distances_to_goal.append(self.evaluate_distance_to_goal(q))
             distance_to_obstacles = []
             fk = self._generic_fk.fk(q, 'panda_link0', 'panda_hand', positionOnly=True)
             for obst in obstacles:
@@ -245,7 +245,7 @@ class AlbertTrial(FabricsTrial):
             distance_to_obstacle += np.min(distance_to_obstacles)
         costs = {
             "path_length": path_length/initial_distance_to_goal,
-            "time_to_goal": distance_to_goal/n_steps,
+            "time_to_goal": np.mean(np.array(distances_to_goal)),
             "obstacles": 1/distance_to_obstacle/n_steps
         }
         return self.total_costs(costs)

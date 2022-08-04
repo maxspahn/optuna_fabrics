@@ -1,23 +1,13 @@
-import gym
-from typing import Dict, Any
-import logging
-import optuna
+from typing import Dict
 import os
-import warnings
-from abc import abstractmethod
-
-from MotionPlanningGoal.goalComposition import GoalComposition
-from MotionPlanningEnv.sphereObstacle import SphereObstacle
 
 import numpy as np
 from optuna_fabrics.planner.symbolic_planner import SymbolicFabricPlanner
 from fabrics.planner.serialized_planner import SerializedFabricPlanner
-from urdfenvs.generic_urdf_reacher.envs.acc import GenericUrdfReacherAccEnv
 
 from forwardkinematics.urdfFks.generic_urdf_fk import GenericURDFFk
 
 from optuna_fabrics.tune.fabrics_trial import FabricsTrial
-import quaternionic
  
 
 
@@ -29,6 +19,15 @@ class PandaTrial(FabricsTrial):
         self._q0 = np.array([0.0, -1.0, 0.0, -1.501, 0.0, 1.8675, 0.0])
         self._qdot0 = np.zeros(7)
         self._collision_links = ['panda_link8', 'panda_link4', "panda_link7", "panda_link5", "panda_hand"]
+        self._link_sizes = {
+            'panda_link8': 0.1,
+            'panda_link4': 0.1,
+            "panda_link7": 0.08,
+            "panda_link5": 0.08,
+            "panda_hand": 0.08
+        }
+        self._ee_link = "panda_hand"
+        self._root_link = "panda_link0"
         self._self_collision_pairs = {
             "panda_hand": ['panda_link2', 'panda_link4'], 
         }
@@ -37,15 +36,6 @@ class PandaTrial(FabricsTrial):
         with open(self._urdf_file, "r") as file:
             self._urdf = file.read()
         self._generic_fk = GenericURDFFk(self._urdf, 'panda_link0', ['panda_hand', 'panda_link5_offset'])
-
-    def initialize_environment(self, render=True):
-        """
-        Initializes the simulation environment.
-        """
-        env: GenericUrdfReacherAccEnv = gym.make(
-            "generic-urdf-reacher-acc-v0", dt=0.05, urdf=self._urdf_file, render=render
-        )
-        return env
 
 
     def set_planner(self):
@@ -68,8 +58,8 @@ class PandaTrial(FabricsTrial):
             self._degrees_of_freedom,
             robot_type,
             urdf=self._urdf,
-            root_link='panda_link0',
-            end_link=['panda_hand'],
+            root_link=self._root_link,
+            end_link=[self._ee_link],
         )
         panda_limits = [
                 [-2.8973, 2.8973],
@@ -93,63 +83,9 @@ class PandaTrial(FabricsTrial):
         planner.serialize(serialize_file)
         return planner
 
-    @abstractmethod
-    def set_goal_arguments(self, q0: np.ndarray, goal: GoalComposition):
-        pass
 
 
-    def run(self, params, planner: SymbolicFabricPlanner, obstacles, ob, goal: GoalComposition, env, n_steps=1000):
-        # Start the simulation
-        logging.info("Starting simulation")
-        q0 = ob['joint_state']['position']
-        arguments, initial_distance_to_goal = self.set_goal_arguments(q0, goal)
-        # sub_goal_0_position = np.array(goal.subGoals()[0].position())
-        objective_value = 0.0
-        distance_to_goal = 0.0
-        distance_to_obstacle = 0.0
-        path_length = 0.0
-        x_old = q0
-        self.set_parameters(arguments, obstacles, params)
-        for _ in range(n_steps):
-            action = planner.compute_action(
-                q=ob["joint_state"]['position'],
-                qdot=ob["joint_state"]['velocity'],
-                weight_goal_0=np.array([1.0]),
-                weight_goal_1=np.array([5.0]),
-                radius_body_panda_link4=np.array([0.1]),
-                radius_body_panda_link5=np.array([0.08]),
-                radius_body_panda_link7=np.array([0.08]),
-                radius_body_panda_link8=np.array([0.1]),
-                radius_body_panda_hand=np.array([0.1]),
-                **arguments,
-            )
-            if np.linalg.norm(action) < 1e-5 or np.linalg.norm(action) > 1e3:
-                action = np.zeros(7)
-            warnings.filterwarnings("error")
-            try:
-                ob, *_ = env.step(action)
-            except Exception as e:
-                logging.warning(e)
-                return 100
-            q = ob['joint_state']['position']
-            path_length += np.linalg.norm(q - x_old)
-            x_old = q
-            distance_to_goal += self.evaluate_distance_to_goal(q)
-            distance_to_obstacles = []
-            fk = self._generic_fk.fk(q, 'panda_link0', 'panda_hand', positionOnly=True)
-            for obst in obstacles:
-                distance_to_obstacles.append(np.linalg.norm(np.array(obst.position()) - fk))
-            distance_to_obstacle += np.min(distance_to_obstacles)
-        costs = {
-            "path_length": path_length/initial_distance_to_goal,
-            "time_to_goal": distance_to_goal/n_steps,
-            "obstacles": 1/distance_to_obstacle/n_steps
-        }
-        return self.total_costs(costs)
 
-
-    def q0(self):
-        return self._q0
 
 
 

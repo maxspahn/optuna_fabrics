@@ -2,6 +2,10 @@ from abc import abstractmethod
 from typing import Dict, Any
 from MotionPlanningGoal.goalComposition import GoalComposition
 from optuna_fabrics.planner.symbolic_planner import SymbolicFabricPlanner
+import gym
+import logging
+import warnings
+from urdfenvs.generic_urdf_reacher.envs.acc import GenericUrdfReacherAccEnv
 import optuna
 import numpy as np
 
@@ -9,12 +13,19 @@ import numpy as np
 class FabricsTrial(object):
     def __init__(self, weights = None):
         self._weights = {"path_length": 0.4, "time_to_goal": 0.4, "obstacles": 0.2}
+        self._maximum_seconds = 30
+        self._dt = 0.05
         if weights:
             self._weights = weights
 
-    @abstractmethod
     def initialize_environment(self, render=True):
-        pass
+        """
+        Initializes the simulation environment.
+        """
+        env: GenericUrdfReacherAccEnv = gym.make(
+            "generic-urdf-reacher-acc-v0", dt=self._dt, urdf=self._urdf_file, render=render
+        )
+        return env
 
     @abstractmethod
     def set_planner(self, render=True):
@@ -26,19 +37,19 @@ class FabricsTrial(object):
     def manual_parameters(self) -> dict:
         return {
             "exp_geo_obst_leaf": 3,
-            "k_geo_obst_leaf": 0.3,
+            "k_geo_obst_leaf": 0.03,
             "exp_fin_obst_leaf": 3,
-            "k_fin_obst_leaf": 0.3,
+            "k_fin_obst_leaf": 0.03,
             "exp_geo_self_leaf": 3,
-            "k_geo_self_leaf": 0.3,
+            "k_geo_self_leaf": 0.03,
             "exp_fin_self_leaf": 3,
-            "k_fin_self_leaf": 0.3,
+            "k_fin_self_leaf": 0.03,
             "exp_geo_limit_leaf": 2,
             "k_geo_limit_leaf": 0.3,
             "exp_fin_limit_leaf": 3,
             "k_fin_limit_leaf": 0.05,
             "weight_attractor": 2,
-            "base_inertia": 0.2,
+            "base_inertia": 0.20,
             "alpha_b_damper" : 0.5,
             "beta_distant_damper" : 0.01,
             "beta_close_damper" : 6.5,
@@ -46,19 +57,15 @@ class FabricsTrial(object):
             "ex_factor": 15.0,
         }
 
-    @abstractmethod
-    def run(self, params, planner: SymbolicFabricPlanner, obstacles, ob, goal: GoalComposition, env, n_steps=5000):
-        pass
-
     def sample_fabrics_params_uniform(self, trial: optuna.trial.Trial) -> Dict[str, Any]:
         exp_geo_obst_leaf = trial.suggest_int("exp_geo_obst_leaf", 1, 5, log=False)
-        k_geo_obst_leaf = trial.suggest_float("k_geo_obst_leaf", 0.1, 1, log=True)
+        k_geo_obst_leaf = trial.suggest_float("k_geo_obst_leaf", 0.01, 1, log=True)
         exp_fin_obst_leaf = trial.suggest_int("exp_fin_obst_leaf", 1, 5, log=False)
-        k_fin_obst_leaf = trial.suggest_float("k_fin_obst_leaf", 0.1, 1, log=True)
+        k_fin_obst_leaf = trial.suggest_float("k_fin_obst_leaf", 0.01, 1, log=True)
         exp_geo_self_leaf = trial.suggest_int("exp_geo_self_leaf", 1, 5, log=False)
-        k_geo_self_leaf = trial.suggest_float("k_geo_self_leaf", 0.1, 1, log=True)
+        k_geo_self_leaf = trial.suggest_float("k_geo_self_leaf", 0.01, 1, log=True)
         exp_fin_self_leaf = trial.suggest_int("exp_fin_self_leaf", 1, 5, log=False)
-        k_fin_self_leaf = trial.suggest_float("k_fin_self_leaf", 0.1, 1, log=True)
+        k_fin_self_leaf = trial.suggest_float("k_fin_self_leaf", 0.01, 1, log=True)
         exp_geo_limit_leaf = trial.suggest_int("exp_geo_limit_leaf", 1, 1, log=False)
         k_geo_limit_leaf = trial.suggest_float("k_geo_limit_leaf", 0.01, 0.2, log=True)
         exp_fin_limit_leaf = trial.suggest_int("exp_fin_limit_leaf", 1, 5, log=False)
@@ -90,6 +97,10 @@ class FabricsTrial(object):
             "ex_factor": ex_factor,
         }
 
+    def set_collision_arguments(self, arguments: dict):
+        for link in self._collision_links:
+            arguments[f"radius_body_{link}"] = np.array([self._link_sizes[link]])
+
     def set_parameters(self, arguments, obstacles, params):
         for j in self._collision_links:
             for i in range(self._number_obstacles):
@@ -119,14 +130,64 @@ class FabricsTrial(object):
         arguments['base_inertia'] = np.array([params['base_inertia']])
         arguments['ex_factor_damper'] = np.array([params['ex_factor']])
 
-    @abstractmethod
-    def q0(self):
-        pass
-
 
     @abstractmethod
     def shuffle_env(self, env):
         pass
+
+    @abstractmethod
+    def set_goal_arguments(self, q0: np.ndarray, goal:GoalComposition, arguments):
+        pass
+
+    def run(self, params, planner: SymbolicFabricPlanner, obstacles, ob, goal: GoalComposition, env):
+        # Start the simulation
+        logging.info("Starting simulation")
+        q0 = ob['joint_state']['position']
+        arguments = {}
+        self.set_collision_arguments(arguments)
+        self.set_goal_arguments(q0, goal, arguments)
+        self.set_parameters(arguments, obstacles, params)
+        initial_distance_to_obstacles = self.evaluate_distance_to_closest_obstacle(obstacles, q0)
+        distances_to_goal = []
+        distances_to_closest_obstacle = []
+        path_length = 0.0
+        x_old = q0
+        while env.t() < self._maximum_seconds:
+            action = planner.compute_action(
+                q=ob["joint_state"]['position'],
+                qdot=ob["joint_state"]['velocity'],
+                **arguments,
+            )
+            if np.linalg.norm(action) < 1e-5 or np.linalg.norm(action) > 1e3:
+                action = np.zeros(7)
+            warnings.filterwarnings("error")
+            try:
+                ob, *_ = env.step(action)
+            except Exception as e:
+                logging.warning(e)
+                return 1
+            q = ob['joint_state']['position']
+            path_length += np.linalg.norm(q - x_old)
+            x_old = q
+            distances_to_goal.append(self.evaluate_distance_to_goal(q))
+            distances_to_closest_obstacle.append(self.evaluate_distance_to_closest_obstacle(obstacles, q))
+        costs = {
+            "path_length": path_length/10,
+            "time_to_goal": np.mean(np.array(distances_to_goal)),
+            "obstacles": 1 - np.min(distances_to_closest_obstacle) / initial_distance_to_obstacles
+        }
+        return costs
+
+    def evaluate_distance_to_closest_obstacle(self, obstacles, q: np.ndarray):
+        distance_to_obstacles = []
+        for link in self._collision_links:
+            fk = self._generic_fk.fk(q, self._root_link, link, positionOnly=True)
+            for obst in obstacles:
+                distance_to_obstacles.append(np.linalg.norm(np.array(obst.position()) - fk))
+        return np.min(distance_to_obstacles)
+
+    def q0(self):
+        return self._q0
 
 
 
@@ -134,4 +195,4 @@ class FabricsTrial(object):
         ob = env.reset(pos=q0)
         env, obstacles, goal = self.shuffle_env(env, randomize=shuffle)
         params = self.sample_fabrics_params_uniform(trial)
-        return self.run(params, planner, obstacles, ob, goal, env)
+        return self.total_costs(self.run(params, planner, obstacles, ob, goal, env))
