@@ -48,16 +48,16 @@ class FabricsStudy(object):
 
     def tune(self):
         # Let us minimize the objective function above.
-        render = False
-        env = self._trial.initialize_environment(render=render, shuffle=self._shuffle)
+        env = self._trial.initialize_environment(render=self._render)
         q0 = self._trial.q0()
         planner = self._trial.set_planner()
         logging.info(f"Running {self._number_trials} trials...")
         self._study.optimize(
-            lambda trial: self._trial.objective(trial, planner, env, q0),
+            lambda trial: self._trial.objective(trial, planner, env, q0, shuffle=self._shuffle),
             n_trials=self._number_trials,
         )
-        #print("Best value: {} (params: {})\n".format(study.best_value, study.best_params))
+        logging.info(f"Best value: {self._study.best_value} (params: {self._study.best_params})")
+        logging.info("Saving study")
         self.save_study()
 
     def save_study(self):
@@ -69,7 +69,7 @@ class FabricsStudy(object):
             params = self._trial.manual_parameters()
         else:
             params = self._study.best_params
-        print(f"Selected parameters: {params}")
+        logging.info(f"Selected parameters: {params}")
         total_costs = []
         env = self._trial.initialize_environment(render=self._render)
         planner = self._trial.set_planner()
@@ -90,16 +90,17 @@ class FabricsStudy(object):
         logging.info(f"Finished test run with average costs: {np.mean(total_costs)}")
 
     def show_history(self):
-            fig = plot_optimization_history(self._study)
-            #fig = plot_param_importances(self._study)
-            fig.update_layout(
-                font=dict(
-                    family="Serif",
-                    size=30,
-                    color="black"
-                )
-            )
-            fig.show()
+            fig1 = plot_optimization_history(self._study)
+            #fig2 = plot_param_importances(self._study)
+            #fig.update_layout(
+            #    font=dict(
+            #        family="Serif",
+            #        size=30,
+            #        color="black"
+            #    )
+            #)
+            fig1.show()
+            #fig2.show()
 
     def initialize_study(self) -> None:
         if self._input_file:

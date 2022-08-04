@@ -10,4 +10,4 @@ if __name__ == "__main__":
     #panda_trial = PandaReachTrial(weights=weights_objective)
     study = FabricsStudy(panda_trial)
     study.run()
-    #study.show_history()
+    study.show_history()

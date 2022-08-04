@@ -29,7 +29,10 @@ class IiwaTrial(FabricsTrial):
         self._degrees_of_freedom = 7
         self._q0 = np.array([0, -0.6, 0.0, -1.1, 0.00, 0, 0.0])
         self._qdot0 = np.zeros(self._degrees_of_freedom)
-        self._collision_links = ["iiwa_link_3", "iiwa_link_5", "iiwa_link_7"]
+        self._collision_links = ["iiwa_link_3", "iiwa_link_5", "iiwa_link_7", "iiwa_link_ee"]
+        self._self_collision_pairs = {
+            "iiwa_link_7": ['iiwa_link_3', 'iiwa_link_5']
+        }
         self._absolute_path = os.path.dirname(os.path.abspath(__file__))
         self._urdf_file = self._absolute_path + "/iiwa7.urdf"
         with open(self._urdf_file, "r") as file:
@@ -62,7 +65,7 @@ class IiwaTrial(FabricsTrial):
         can be found. Commented by default.
 
         """
-        serialize_file = self._absolute_path + "/planners/iiwa_planner.pkl"
+        serialize_file = self._absolute_path + "/../planner/serialized_planners/iiwa_planner.pkl"
         if os.path.exists(serialize_file):
             planner = SerializedFabricPlanner(serialize_file)
             return planner
@@ -103,12 +106,11 @@ class IiwaTrial(FabricsTrial):
             [-3.05432619, 3.05432619],
         ]
 
-        self_collision_pairs = {}
         # The planner hides all the logic behind the function set_components.
         goal = self.dummy_goal()
         planner.set_components(
             self._collision_links,
-            self_collision_pairs,
+            self._self_collision_pairs,
             goal,
             number_obstacles=self._number_obstacles,
             limits=iiwa_limits,
@@ -133,26 +135,7 @@ class IiwaTrial(FabricsTrial):
         distance_to_obstacle = 0.0
         path_length = 0.0
         x_old = q0
-        for j in self._collision_links:
-            for i in range(self._number_obstacles):
-                arguments[f"x_obst_{i}"] = np.array(obstacles[i].position())
-                arguments[f"radius_obst_{i}"] = np.array(obstacles[i].radius())
-                arguments[f"exp_geo_obst_{i}_{j}_leaf"] = np.array([params['exp_geo_obst_leaf']])
-                arguments[f"k_geo_obst_{i}_{j}_leaf"] = np.array([params['k_geo_obst_leaf']])
-                arguments[f"exp_fin_obst_{i}_{j}_leaf"] = np.array([params['exp_fin_obst_leaf']])
-                arguments[f"k_fin_obst_{i}_{j}_leaf"] = np.array([params['k_fin_obst_leaf']])
-        for j in range(self._degrees_of_freedom):
-            for i in range(2):
-                arguments[f"exp_limit_fin_limit_joint_{j}_{i}_leaf"] = np.array([params['exp_fin_limit_leaf']])
-                arguments[f"exp_limit_geo_limit_joint_{j}_{i}_leaf"] = np.array([params['exp_geo_limit_leaf']])
-                arguments[f"k_limit_fin_limit_joint_{j}_{i}_leaf"] = np.array([params['k_fin_limit_leaf']])
-                arguments[f"k_limit_geo_limit_joint_{j}_{i}_leaf"] = np.array([params['k_geo_limit_leaf']])
-        # damper arguments
-        arguments['alpha_b_damper'] = np.array([params['alpha_b_damper']])
-        arguments['beta_close_damper'] = np.array([params['beta_close_damper']])
-        arguments['beta_distant_damper'] = np.array([params['beta_distant_damper']])
-        arguments['radius_shift_damper'] = np.array([params['radius_shift_damper']])
-        arguments['base_inertia'] = np.array([params['base_inertia']])
+        self.set_parameters(arguments, obstacles, params)
         for _ in range(n_steps):
             action = planner.compute_action(
                 q=ob["joint_state"]['position'],
@@ -162,6 +145,7 @@ class IiwaTrial(FabricsTrial):
                 radius_body_iiwa_link_3=np.array([0.10]),
                 radius_body_iiwa_link_5=np.array([0.10]),
                 radius_body_iiwa_link_7=np.array([0.08]),
+                radius_body_iiwa_link_ee=np.array([0.08]),
                 **arguments,
             )
             if np.linalg.norm(action) < 1e-5 or np.linalg.norm(action) > 1e3:

@@ -78,10 +78,18 @@ class RingTrial(FabricsTrial):
         return GoalComposition(name="goal", contentDict=goal_dict)
 
 
-    def shuffle_env(self, env):
+    def shuffle_env(self, env, randomize=True):
         # Definition of the goal.
         mean = [0.0, 0.707, 0.0, 0.0]
-        goal_orientation = generate_random_orientation(mean, rotation=0.1, tilting=0.1)
+        if randomize:
+            goal_orientation = generate_random_orientation(mean, rotation=0.1, tilting=0.1)
+            goal_position = generate_random_position().tolist()
+            ring_orientation = generate_random_orientation(goal_orientation, rotation=0.1, tilting=0.1)
+
+        else:
+            goal_orientation = [0.3, 0.707, 0.15, 0.0]
+            goal_position = [0.59, 0.15, 0.76]
+            ring_orientation = [-0.10, 0.71, -0.20, 0.0]
         goal_dict = {
             "subgoal0": {
                 "m": 3,
@@ -90,7 +98,7 @@ class RingTrial(FabricsTrial):
                 "indices": [0, 1, 2],
                 "parent_link": self._sub_goal_0_links[0],
                 "child_link": self._sub_goal_0_links[1],
-                "desired_position": generate_random_position().tolist(),
+                "desired_position": goal_position,
                 "high": [0.7, 0.2, 0.7],
                 "low": [0.5, -0.2, 0.6],
                 "epsilon": 0.05,
@@ -112,10 +120,8 @@ class RingTrial(FabricsTrial):
         goal = GoalComposition(name="goal", contentDict=goal_dict)
         env.add_goal(goal)
         # Definition of the obstacle.
-        radius_ring = 0.31
+        radius_ring = 0.30
         obstacles = []
-        ring_orientation = generate_random_orientation(goal_orientation, rotation=0.1, tilting=0.1)
-        #goal_orientation = np.random.random(4).tolist()
         rotation_matrix_ring = quaternionic.array(ring_orientation).to_rotation_matrix
         whole_position = goal.primeGoal().position()
         for i in range(self._obstacle_resolution + 1):
@@ -150,7 +156,7 @@ class RingTrial(FabricsTrial):
         sub_goal_1_rotation_matrix = sub_goal_1_quaternion.to_rotation_matrix
         fk_0 = self._generic_fk.fk(q0, goal.subGoals()[0].parentLink(), goal.subGoals()[0].childLink(), positionOnly=True)
         self._initial_distance_to_goal_0 = np.linalg.norm(sub_goal_0_position - fk_0)
-        self._initial_distance_to_goal_0 = 1.0
+        #self._initial_distance_to_goal_0 = 1.0
         arguments['x_goal_0'] = sub_goal_0_position
         arguments['x_goal_1'] = sub_goal_1_position
         arguments['angle_goal_1'] = sub_goal_1_rotation_matrix

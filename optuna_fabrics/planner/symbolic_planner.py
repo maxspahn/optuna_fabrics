@@ -20,10 +20,10 @@ class SymbolicFabricPlanner(ParameterizedFabricPlanner):
             "sym('k_limit_fin')/(x**sym('exp_limit_fin')) * (-0.5 * (ca.sign(xdot) - 1)) * xdot**2"
         )
         self_collision_geometry: str = (
-            "-0.5 / (x ** 1) * xdot ** 2"
+            "-sym('k_self_geo') / (x ** sym('exp_self_geo')) * xdot ** 2"
         )
         self_collision_finsler: str = (
-            "0.1/(x**2) * (-0.5 * (ca.sign(xdot) - 1)) * xdot**2"
+            "sym('k_self_fin')/(x** sym('exp_self_fin')) * (-0.5 * (ca.sign(xdot) - 1)) * xdot**2"
         )
         """
         collision_geometry: str = (

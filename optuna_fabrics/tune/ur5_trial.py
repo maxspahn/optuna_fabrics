@@ -30,6 +30,9 @@ class Ur5Trial(FabricsTrial):
         self._q0 = np.array([3.14, -1.0, -1.57, 0.1, 1.57, 0])
         self._qdot0 = np.zeros(self._degrees_of_freedom)
         self._collision_links = ['shoulder_link', 'wrist_1_link', 'wrist_2_link', 'wrist_3_link', 'forearm_link']
+        self._self_collision_pairs = {
+            "wrist_3_link": ['forearm_link', 'shoulder_link']
+        }
         self._absolute_path = os.path.dirname(os.path.abspath(__file__))
         self._urdf_file = self._absolute_path + "/ur5.urdf"
         with open(self._urdf_file, "r") as file:
@@ -62,7 +65,7 @@ class Ur5Trial(FabricsTrial):
         can be found. Commented by default.
 
         """
-        serialize_file = self._absolute_path + "/planners/ur5_planner.pkl"
+        serialize_file = self._absolute_path + "/../planner/serialized_planners/ur5_planner.pkl"
         if os.path.exists(serialize_file):
             planner = SerializedFabricPlanner(serialize_file)
             return planner
@@ -101,12 +104,11 @@ class Ur5Trial(FabricsTrial):
                 [-2 * np.pi, 2 * np.pi],
                 [-2 * np.pi, 2 * np.pi],
             ]
-        self_collision_pairs = {}
         # The planner hides all the logic behind the function set_components.
         goal = self.dummy_goal()
         planner.set_components(
             self._collision_links,
-            self_collision_pairs,
+            self._self_collision_pairs,
             goal,
             number_obstacles=self._number_obstacles,
             limits=ur5_limits,
@@ -131,20 +133,7 @@ class Ur5Trial(FabricsTrial):
         distance_to_obstacle = 0.0
         path_length = 0.0
         x_old = q0
-        for j in self._collision_links:
-            for i in range(self._number_obstacles):
-                arguments[f"x_obst_{i}"] = np.array(obstacles[i].position())
-                arguments[f"radius_obst_{i}"] = np.array(obstacles[i].radius())
-                arguments[f"exp_geo_obst_{i}_{j}_leaf"] = np.array([params['exp_geo_obst_leaf']])
-                arguments[f"k_geo_obst_{i}_{j}_leaf"] = np.array([params['k_geo_obst_leaf']])
-                arguments[f"exp_fin_obst_{i}_{j}_leaf"] = np.array([params['exp_fin_obst_leaf']])
-                arguments[f"k_fin_obst_{i}_{j}_leaf"] = np.array([params['k_fin_obst_leaf']])
-        for j in range(self._degrees_of_freedom):
-            for i in range(2):
-                arguments[f"exp_limit_fin_limit_joint_{j}_{i}_leaf"] = np.array([params['exp_fin_limit_leaf']])
-                arguments[f"exp_limit_geo_limit_joint_{j}_{i}_leaf"] = np.array([params['exp_geo_limit_leaf']])
-                arguments[f"k_limit_fin_limit_joint_{j}_{i}_leaf"] = np.array([params['k_fin_limit_leaf']])
-                arguments[f"k_limit_geo_limit_joint_{j}_{i}_leaf"] = np.array([params['k_geo_limit_leaf']])
+        self.set_parameters(arguments, obstacles, params)
         # damper arguments
         arguments['alpha_b_damper'] = np.array([params['alpha_b_damper']])
         arguments['beta_close_damper'] = np.array([params['beta_close_damper']])

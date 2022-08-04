@@ -12,7 +12,7 @@ from MotionPlanningEnv.sphereObstacle import SphereObstacle
 import numpy as np
 from optuna_fabrics.planner.symbolic_planner import SymbolicFabricPlanner
 from fabrics.planner.serialized_planner import SerializedFabricPlanner
-import urdfenvs.panda_reacher 
+from urdfenvs.generic_urdf_reacher.envs.acc import GenericUrdfReacherAccEnv
 
 from forwardkinematics.urdfFks.generic_urdf_fk import GenericURDFFk
 
@@ -29,20 +29,22 @@ class PandaTrial(FabricsTrial):
         self._q0 = np.array([0.0, -1.0, 0.0, -1.501, 0.0, 1.8675, 0.0])
         self._qdot0 = np.zeros(7)
         self._collision_links = ['panda_link8', 'panda_link4', "panda_link7", "panda_link5", "panda_hand"]
+        self._self_collision_pairs = {
+            "panda_hand": ['panda_link2', 'panda_link4'], 
+        }
         self._absolute_path = os.path.dirname(os.path.abspath(__file__))
-        with open(self._absolute_path + "/panda_vacuum.urdf", "r") as file:
+        self._urdf_file = self._absolute_path + "/panda.urdf"
+        with open(self._urdf_file, "r") as file:
             self._urdf = file.read()
-        self._generic_fk = GenericURDFFk(self._urdf, 'panda_link0', 'panda_hand')
+        self._generic_fk = GenericURDFFk(self._urdf, 'panda_link0', ['panda_hand', 'panda_link5_offset'])
 
-    def initialize_environment(self, render=True, shuffle=True):
+    def initialize_environment(self, render=True):
         """
         Initializes the simulation environment.
-
-        Adds obstacles and goal visualizaion to the environment based and
-        env.add_obstacle(obstacles[1])
-        steps the simulation once.
         """
-        env = gym.make("panda-reacher-acc-v0", dt=0.05, render=render)
+        env: GenericUrdfReacherAccEnv = gym.make(
+            "generic-urdf-reacher-acc-v0", dt=0.05, urdf=self._urdf_file, render=render
+        )
         return env
 
 
@@ -57,30 +59,11 @@ class PandaTrial(FabricsTrial):
         can be found. Commented by default.
 
         """
-        serialize_file = self._absolute_path + "/planners/panda_planner.pkl"
+        serialize_file = self._absolute_path + "/../planner/serialized_planners/panda_planner.pkl"
         if os.path.exists(serialize_file):
             planner = SerializedFabricPlanner(serialize_file)
             return planner
         robot_type = "panda"
-
-        ## Optional reconfiguration of the planner
-        # base_inertia = 0.03
-        # attractor_potential = "20 * ca.norm_2(x)**4"
-        # damper = {
-        #     "alpha_b": 0.5,
-        #     "alpha_eta": 0.5,
-        #     "alpha_shift": 0.5,
-        #     "beta_distant": 0.01,
-        #     "beta_close": 6.5,
-        #     "radius_shift": 0.1,
-        # }
-        # planner = ParameterizedFabricPlanner(
-        #     degrees_of_freedom,
-        #     robot_type,
-        #     base_inertia=base_inertia,
-        #     attractor_potential=attractor_potential,
-        #     damper=damper,
-        # )
         planner = SymbolicFabricPlanner(
             self._degrees_of_freedom,
             robot_type,
@@ -97,12 +80,11 @@ class PandaTrial(FabricsTrial):
                 [-0.0175, 3.7525],
                 [-2.8973, 2.8973]
             ]
-        self_collision_pairs = {}
         # The planner hides all the logic behind the function set_components.
         goal = self.dummy_goal()
         planner.set_components(
             self._collision_links,
-            self_collision_pairs,
+            self._self_collision_pairs,
             goal,
             number_obstacles=self._number_obstacles,
             limits=panda_limits,
@@ -127,27 +109,7 @@ class PandaTrial(FabricsTrial):
         distance_to_obstacle = 0.0
         path_length = 0.0
         x_old = q0
-        for j in self._collision_links:
-            for i in range(self._number_obstacles):
-                arguments[f"x_obst_{i}"] = np.array(obstacles[i].position())
-                arguments[f"radius_obst_{i}"] = np.array(obstacles[i].radius())
-                arguments[f"exp_geo_obst_{i}_{j}_leaf"] = np.array([params['exp_geo_obst_leaf']])
-                arguments[f"k_geo_obst_{i}_{j}_leaf"] = np.array([params['k_geo_obst_leaf']])
-                arguments[f"exp_fin_obst_{i}_{j}_leaf"] = np.array([params['exp_fin_obst_leaf']])
-                arguments[f"k_fin_obst_{i}_{j}_leaf"] = np.array([params['k_fin_obst_leaf']])
-        for j in range(self._degrees_of_freedom):
-            for i in range(2):
-                arguments[f"exp_limit_fin_limit_joint_{j}_{i}_leaf"] = np.array([params['exp_fin_limit_leaf']])
-                arguments[f"exp_limit_geo_limit_joint_{j}_{i}_leaf"] = np.array([params['exp_geo_limit_leaf']])
-                arguments[f"k_limit_fin_limit_joint_{j}_{i}_leaf"] = np.array([params['k_fin_limit_leaf']])
-                arguments[f"k_limit_geo_limit_joint_{j}_{i}_leaf"] = np.array([params['k_geo_limit_leaf']])
-        # damper arguments
-        arguments['alpha_b_damper'] = np.array([params['alpha_b_damper']])
-        arguments['beta_close_damper'] = np.array([params['beta_close_damper']])
-        arguments['beta_distant_damper'] = np.array([params['beta_distant_damper']])
-        arguments['radius_shift_damper'] = np.array([params['radius_shift_damper']])
-        arguments['base_inertia'] = np.array([params['base_inertia']])
-        arguments['ex_factor_damper'] = np.array([params['ex_factor']])
+        self.set_parameters(arguments, obstacles, params)
         for _ in range(n_steps):
             action = planner.compute_action(
                 q=ob["joint_state"]['position'],
