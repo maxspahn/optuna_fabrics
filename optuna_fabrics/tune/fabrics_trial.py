@@ -4,10 +4,12 @@ from MotionPlanningGoal.goalComposition import GoalComposition
 from optuna_fabrics.planner.symbolic_planner import SymbolicFabricPlanner
 import gym
 import logging
+import time
 import warnings
 from urdfenvs.generic_urdf_reacher.envs.acc import GenericUrdfReacherAccEnv
 import optuna
 import numpy as np
+import casadi as ca
 
 
 class FabricsTrial(object):
@@ -153,24 +155,29 @@ class FabricsTrial(object):
         path_length = 0.0
         x_old = q0
         while env.t() < self._maximum_seconds:
+            t0 = time.perf_counter()
             action = planner.compute_action(
                 q=ob["joint_state"]['position'],
                 qdot=ob["joint_state"]['velocity'],
                 **arguments,
             )
+            t1 = time.perf_counter()
             if np.linalg.norm(action) < 1e-5 or np.linalg.norm(action) > 1e3:
-                action = np.zeros(7)
+                action = np.zeros(self._degrees_of_freedom)
             warnings.filterwarnings("error")
             try:
                 ob, *_ = env.step(action)
             except Exception as e:
                 logging.warning(e)
-                return 1
+                return {"path_length": 1.0, "time_to_goal": 1.0, "obstacles": 1.0}
             q = ob['joint_state']['position']
+            t2 = time.perf_counter()
             path_length += np.linalg.norm(q - x_old)
             x_old = q
             distances_to_goal.append(self.evaluate_distance_to_goal(q))
             distances_to_closest_obstacle.append(self.evaluate_distance_to_closest_obstacle(obstacles, q))
+            t3 = time.perf_counter()
+            logging.debug(f"Compute action {t1-t0}\nStepping environment: {t2-t1}\nCompute metrics{t3-t2}")
         costs = {
             "path_length": path_length/10,
             "time_to_goal": np.mean(np.array(distances_to_goal)),
@@ -178,13 +185,20 @@ class FabricsTrial(object):
         }
         return costs
 
-    def evaluate_distance_to_closest_obstacle(self, obstacles, q: np.ndarray):
-        distance_to_obstacles = []
+    def create_collision_metric(self, obstacles):
+        q = ca.SX.sym("q", self._degrees_of_freedom)
+        distance_to_obstacles = 10000
         for link in self._collision_links:
             fk = self._generic_fk.fk(q, self._root_link, link, positionOnly=True)
             for obst in obstacles:
-                distance_to_obstacles.append(np.linalg.norm(np.array(obst.position()) - fk))
-        return np.min(distance_to_obstacles)
+                obst_position = np.array(obst.position())
+                distance_to_obstacles = ca.fmin(distance_to_obstacles, ca.norm_2(obst_position - fk))
+        self._collision_metric = ca.Function("collision_metric", [q], [distance_to_obstacles])
+
+
+    def evaluate_distance_to_closest_obstacle(self, obstacles, q: np.ndarray):
+        casadi_metric = self._collision_metric(q)
+        return casadi_metric
 
     def q0(self):
         return self._q0
@@ -194,5 +208,6 @@ class FabricsTrial(object):
     def objective(self, trial, planner, env, q0, shuffle=True):
         ob = env.reset(pos=q0)
         env, obstacles, goal = self.shuffle_env(env, randomize=shuffle)
+        self.create_collision_metric(obstacles)
         params = self.sample_fabrics_params_uniform(trial)
         return self.total_costs(self.run(params, planner, obstacles, ob, goal, env))

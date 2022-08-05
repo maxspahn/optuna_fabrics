@@ -78,17 +78,18 @@ class FabricsStudy(object):
             q0 = self._trial.q0()
             ob = env.reset(pos=q0)
             env, obstacles, goal = self._trial.shuffle_env(env)
+            self._trial.create_collision_metric(obstacles)
             for obst in obstacles:
                 env.add_obstacle(obst)
             costs = self._trial.run(params, planner, obstacles, ob, goal, env)
+            costs["total_costs"] = self._trial.total_costs(costs)
             logging.info(f"Finished test run {i} with cost: {costs}")
-            total_costs.append(self._trial.total_costs(costs))
+            total_costs.append(costs)
         timeStamp = "{:%Y%m%d_%H%M%S}".format(datetime.datetime.now())
         with open(f"result_{timeStamp}.csv", "w") as f:
             writer = csv.writer(f)
             for cost in total_costs:
                 writer.writerow(list(cost.values()))
-        logging.info(f"Finished test run with average costs: {np.mean(total_costs)}")
 
 
 
