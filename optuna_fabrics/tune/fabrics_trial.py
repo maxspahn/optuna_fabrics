@@ -203,11 +203,9 @@ class FabricsTrial(object):
     def q0(self):
         return self._q0
 
-
-
     def objective(self, trial, planner, env, q0, shuffle=True):
         ob = env.reset(pos=q0)
-        env, obstacles, goal = self.shuffle_env(env, randomize=shuffle)
+        env, obstacles, goal = self.shuffle_env(env,shuffle =shuffle)
         self.create_collision_metric(obstacles)
         params = self.sample_fabrics_params_uniform(trial)
         return self.total_costs(self.run(params, planner, obstacles, ob, goal, env))

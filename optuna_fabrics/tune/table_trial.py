@@ -20,9 +20,27 @@ import quaternionic
 logging.basicConfig(level=logging.INFO)
 optuna.logging.set_verbosity(optuna.logging.INFO)
 
+def generate_random_orientation(mean, rotation=0.0, tilting=0.0):
+    """
+    Generate random orientation of feasible reaching tasks.
+
+    params
+    mean:list
+        mean of quaternion, good: mean = [0.0, 0.707, 0.0, 0.0]
+    rotation: float
+        amount of rotation around z axis
+    tilting: float
+        amount of tilting
+    """
+    lower_limit = np.array([0, 0, -rotation, -tilting])
+    upper_limit = np.array([0, 0, rotation, tilting])
+    orientation = np.array(mean) + np.random.uniform(lower_limit, upper_limit, 4)
+    return orientation.tolist()
+
+
 class TableTrial(FabricsTrial):
     def __init__(self, weights=None):
-        self._number_obstacles = 5
+        self._number_obstacles = 10
         super().__init__(weights)
 
     def dummy_goal(self):
@@ -55,7 +73,6 @@ class TableTrial(FabricsTrial):
         }
         return GoalComposition(name="goal", contentDict=goal_dict)
 
-
     def shuffle_env(self, env, shuffle=True):
         # Definition of the goal.
         goal_dict = {
@@ -66,10 +83,10 @@ class TableTrial(FabricsTrial):
                 "indices": [0, 1, 2],
                 "parent_link": self._sub_goal_0_links[0],
                 "child_link": self._sub_goal_0_links[1],
-                "desired_position": [0.5, 0.0, 0.1],
+                "desired_position": [0.7, -0.2, 0.07],
                 "epsilon": 0.05,
-                "low": [0.4, -0.5, 0.05],
-                "high": [0.8, 0.5, 0.05],
+                "low": [0.4, -0.5, 0.07],
+                "high": [0.8, 0.5, 0.07],
                 "type": "staticSubGoal",
             },
             "subgoal1": {
@@ -98,14 +115,35 @@ class TableTrial(FabricsTrial):
             "type": "sphere",
             "geometry": {"position": [1000.0, 0.5, 0.1], "radius": 0.1},
             "low": {'position': [0.2, -0.7, 0.0], 'radius': 0.05},
-            "high": {'position': [1.0, 0.7, 0.4], 'radius': 0.1},
+            "high": {'position': [1.0, 0.7, 0.2], 'radius': 0.15},
         }
+        static_obstacles_positions = [
+            [0.4201, 0.3462, 0.03198],
+            [0.8695, -0.585, 0.06963],
+            [0.7850, 0.3850, 0.08218],
+            [0.4572, 0.1572, 0.07123],
+            [0.4940, -0.494, 0.02137],
+            [0.3449, 0.0449, 0.1479],
+            [0.3172, 0.3172, 0.1815],
+            [0.8994, -0.099, 0.0556],
+            [0.8231, 0.8231, 0.03824],
+            [0.7101, -0.710, 0.01567],
+            [0.2948, 0.2148, 0.04941],
+        ]
         obstacles = []
         for i in range(self._number_obstacles):
             obst_i = SphereObstacle(name="staticObst", contentDict=static_obst_dict)
             if shuffle:
                 obst_i.shuffle()
+                while np.linalg.norm(
+                        np.array(obst_i.position()[0:2])
+                        - np.array(goal.primeGoal().position()[0:2])
+                    ) < 0.15:
+                    obst_i.shuffle()
+            else:
+                obst_i._config.geometry.position = static_obstacles_positions[i]
             obstacles.append(obst_i)
+
         return env, obstacles, goal
 
     def evaluate_distance_to_goal(self, q: np.ndarray):
@@ -113,17 +151,20 @@ class TableTrial(FabricsTrial):
         fk = self._generic_fk.fk(q, self._goal.subGoals()[0].parentLink(), self._goal.subGoals()[0].childLink(), positionOnly=True)
         return np.linalg.norm(sub_goal_0_position - fk) / self._initial_distance_to_goal_0 
 
-    def set_goal_arguments(self, q0: np.ndarray, goal:GoalComposition):
+
+    def set_goal_arguments(self, q0: np.ndarray, goal:GoalComposition, arguments):
         self._goal = goal
-        arguments = {}
         sub_goal_0_position = np.array(goal.subGoals()[0].position())
         sub_goal_1_position = np.array(goal.subGoals()[1].position())
         sub_goal_1_quaternion = quaternionic.array(goal.subGoals()[1].angle())
         sub_goal_1_rotation_matrix = sub_goal_1_quaternion.to_rotation_matrix
         fk_0 = self._generic_fk.fk(q0, goal.subGoals()[0].parentLink(), goal.subGoals()[0].childLink(), positionOnly=True)
         self._initial_distance_to_goal_0 = np.linalg.norm(sub_goal_0_position - fk_0)
+        #self._initial_distance_to_goal_0 = 1.0
         arguments['x_goal_0'] = sub_goal_0_position
         arguments['x_goal_1'] = sub_goal_1_position
         arguments['angle_goal_1'] = sub_goal_1_rotation_matrix
-        return arguments, self._initial_distance_to_goal_0
+        arguments['weight_goal_0']=np.array([1.0])
+        arguments['weight_goal_1']=np.array([2.0])
+        return self._initial_distance_to_goal_0
 

@@ -77,7 +77,7 @@ class FabricsStudy(object):
         for i in range(self._number_trials):
             q0 = self._trial.q0()
             ob = env.reset(pos=q0)
-            env, obstacles, goal = self._trial.shuffle_env(env)
+            env, obstacles, goal = self._trial.shuffle_env(env, shuffle=self._shuffle)
             self._trial.create_collision_metric(obstacles)
             for obst in obstacles:
                 env.add_obstacle(obst)
