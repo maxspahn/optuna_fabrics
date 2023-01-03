@@ -78,10 +78,10 @@ class RingTrial(FabricsTrial):
         return GoalComposition(name="goal", contentDict=goal_dict)
 
 
-    def shuffle_env(self, env, randomize=True):
+    def shuffle_env(self, env, shuffle=True):
         # Definition of the goal.
         mean = [0.0, 0.707, 0.0, 0.0]
-        if randomize:
+        if shuffle:
             goal_orientation = generate_random_orientation(mean, rotation=0.1, tilting=0.1)
             goal_position = generate_random_position().tolist()
             ring_orientation = generate_random_orientation(goal_orientation, rotation=0.1, tilting=0.1)

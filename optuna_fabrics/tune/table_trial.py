@@ -144,6 +144,8 @@ class TableTrial(FabricsTrial):
                 obst_i._config.geometry.position = static_obstacles_positions[i]
             obstacles.append(obst_i)
 
+        for obst in obstacles:
+            env.add_obstacle(obst)
         return env, obstacles, goal
 
     def evaluate_distance_to_goal(self, q: np.ndarray):

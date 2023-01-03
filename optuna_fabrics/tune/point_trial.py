@@ -31,7 +31,7 @@ class PointTrial(FabricsTrial):
         self._q0 = np.array([-8.0, 0.1])
         self._qdot0 = np.array([0.0, 0.0])
         self._number_obstacles = 5
-        self._weights = {"path_length": 0.4, "time_to_goal": 0.4, "obstacles": 0.2}
+        self._weights = {"path_length": 0.1, "time_to_goal": 0.7, "obstacles": 0.2}
 
     def initialize_environment(self, render=True, shuffle=True):
         """
@@ -79,7 +79,27 @@ class PointTrial(FabricsTrial):
         env.add_goal(goal)
         for obst in obstacles:
             env.add_obstacle(obst)
-        return (env, obstacles, goal, initial_observation)
+        return env, obstacles, goal, initial_observation
+
+    def dummy_goal(self):
+        goal_dict = {
+            "subgoal0": {
+                "m": 2,
+                "w": 1.0,
+                "prime": True,
+                "indices": [0, 1],
+                "parent_link": 0,
+                "child_link": 2,
+                "desired_position": [3.0, 0.0],
+                "low": [1.0, -5.0],
+                "high": [5.0, 5.0],
+                "epsilon": 0.15,
+                "type": "staticSubGoal",
+            }
+        }
+        goal = GoalComposition(name="goal", contentDict=goal_dict)
+        return goal
+
 
     def manual_parameters(self) -> dict:
         return {
@@ -92,7 +112,7 @@ class PointTrial(FabricsTrial):
         }
 
 
-    def set_planner(self, goal: GoalComposition):
+    def set_planner(self):
         """
         Initializes the fabric planner for the point robot.
 
@@ -128,6 +148,7 @@ class PointTrial(FabricsTrial):
         collision_links = [1]
         self_collision_links = {}
         limits = [[-5, 5], [-5, 5]]
+        goal = self.dummy_goal()
         planner.set_components(
             collision_links, self_collision_links, goal, number_obstacles=self._number_obstacles, limits=limits,
         )
@@ -135,7 +156,7 @@ class PointTrial(FabricsTrial):
         return planner
 
 
-    def run(self, params, planner: SymbolicFabricPlanner, obstacles, ob, goal, env, n_steps=5000):
+    def objective(self, params, planner: SymbolicFabricPlanner, obstacles, ob, goal, env, n_steps=5000, shuffle=False):
 
         # Start the simulation
         print("Starting simulation")
