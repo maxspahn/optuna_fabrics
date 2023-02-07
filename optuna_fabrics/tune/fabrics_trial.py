@@ -1,16 +1,17 @@
 from abc import abstractmethod
 from typing import Dict, Any
-from MotionPlanningGoal.goalComposition import GoalComposition
 from optuna_fabrics.planner.symbolic_planner import SymbolicFabricPlanner
+from mpscenes.goals.goal_composition import GoalComposition
 import gym
 import logging
 import time
 import warnings
-from urdfenvs.generic_urdf_reacher.envs.acc import GenericUrdfReacherAccEnv
 import optuna
 import numpy as np
 from numpy.random import default_rng
 import casadi as ca
+
+from urdfenvs.robots.generic_urdf import GenericUrdfReacher
 
 
 class FabricsTrial(object):
@@ -26,8 +27,12 @@ class FabricsTrial(object):
         """
         Initializes the simulation environment.
         """
-        env: GenericUrdfReacherAccEnv = gym.make(
-            "generic-urdf-reacher-acc-v0", dt=self._dt, urdf=self._urdf_file, render=render
+        robots = [
+            GenericUrdfReacher(urdf=self._urdf_file, mode="acc"),
+        ]
+        env = gym.make(
+            "urdf-env-v0",
+            dt=self._dt, robots=robots, render=render
         )
         return env
 
@@ -167,8 +172,8 @@ class FabricsTrial(object):
         pass
 
     def extract_joint_states(self, ob: dict):
-        if 'joint_state' in ob:
-            return ob['joint_state']['position'], ob['joint_state']['velocity']
+        if 'joint_state' in ob['robot_0']:
+            return ob['robot_0']['joint_state']['position'], ob['robot_0']['joint_state']['velocity']
         else:
             return ob['x'], ob['xdot']
 

@@ -30,7 +30,7 @@ class PointAvoidanceTrial(FabricsTrial):
             "subgoal0": {
                 "m": 2,
                 "w": 1.0,
-                "prime": True,
+                "is_primary_goal": True,
                 "indices": [0, 1],
                 "parent_link": 0,
                 "child_link": 2,
@@ -41,7 +41,7 @@ class PointAvoidanceTrial(FabricsTrial):
                 "type": "staticSubGoal",
             }
         }
-        return GoalComposition(name="goal", contentDict=goal_dict)
+        return GoalComposition(name="goal", content_dict=goal_dict)
 
 
     def shuffle_env(self, env, shuffle=True):
@@ -61,7 +61,7 @@ class PointAvoidanceTrial(FabricsTrial):
         ]
         obstacles = []
         for i in range(self._number_obstacles):
-            obst_i = SphereObstacle(name="staticObst", contentDict=static_obst_dict)
+            obst_i = SphereObstacle(name="staticObst", content_dict=static_obst_dict)
             if shuffle:
                 obst_i.shuffle()
             else:
@@ -72,7 +72,7 @@ class PointAvoidanceTrial(FabricsTrial):
             "subgoal0": {
                 "m": 2,
                 "w": 1.0,
-                "prime": True,
+                "is_primary_goal": True,
                 "indices": [0, 1],
                 "parent_link": 0,
                 "child_link": 2,
@@ -83,7 +83,7 @@ class PointAvoidanceTrial(FabricsTrial):
                 "type": "staticSubGoal",
             }
         }
-        goal = GoalComposition(name="goal", contentDict=goal_dict)
+        goal = GoalComposition(name="goal", content_dict=goal_dict)
         if shuffle:
             goal.shuffle()
         env.add_goal(goal)

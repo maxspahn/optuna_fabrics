@@ -5,8 +5,8 @@ import optuna
 import os
 import warnings
 
-from MotionPlanningGoal.goalComposition import GoalComposition
-from MotionPlanningEnv.sphereObstacle import SphereObstacle
+from mpscenes.goals.goal_composition import GoalComposition
+from mpscenes.obstacles.sphere_obstacle import SphereObstacle
 
 import numpy as np
 from optuna_fabrics.planner.symbolic_planner import SymbolicFabricPlanner
@@ -46,9 +46,8 @@ class TableTrial(FabricsTrial):
     def dummy_goal(self):
         goal_dict = {
             "subgoal0": {
-                "m": 3,
-                "w": 0.0,
-                "prime": True,
+                "weight": 0.0,
+                "is_primary_goal": True,
                 "indices": [0, 1, 2],
                 "parent_link": self._sub_goal_0_links[0],
                 "child_link": self._sub_goal_0_links[1],
@@ -59,9 +58,8 @@ class TableTrial(FabricsTrial):
                 "type": "staticSubGoal",
             },
             "subgoal1": {
-                "m": 3,
-                "w": 3.0,
-                "prime": False,
+                "weight": 3.0,
+                "is_primary_goal": False,
                 "indices": [0, 1, 2],
                 "parent_link": self._sub_goal_1_links[0],
                 "child_link": self._sub_goal_1_links[1],
@@ -71,15 +69,14 @@ class TableTrial(FabricsTrial):
                 "type": "staticSubGoal",
             }
         }
-        return GoalComposition(name="goal", contentDict=goal_dict)
+        return GoalComposition(name="goal", content_dict=goal_dict)
 
     def shuffle_env(self, env, shuffle=True):
         # Definition of the goal.
         goal_dict = {
             "subgoal0": {
-                "m": 3,
-                "w": 1.0,
-                "prime": True,
+                "weight": 1.0,
+                "is_primary_goal": True,
                 "indices": [0, 1, 2],
                 "parent_link": self._sub_goal_0_links[0],
                 "child_link": self._sub_goal_0_links[1],
@@ -90,9 +87,8 @@ class TableTrial(FabricsTrial):
                 "type": "staticSubGoal",
             },
             "subgoal1": {
-                "m": 3,
-                "w": 3.0,
-                "prime": False,
+                "weight": 3.0,
+                "is_primary_goal": False,
                 "indices": [0, 1, 2],
                 "parent_link": self._sub_goal_1_links[0],
                 "child_link": self._sub_goal_1_links[1],
@@ -105,13 +101,12 @@ class TableTrial(FabricsTrial):
                 "type": "staticSubGoal",
             }
         }
-        goal = GoalComposition(name="goal", contentDict=goal_dict)
+        goal = GoalComposition(name="goal", content_dict=goal_dict)
         if shuffle:
             goal.shuffle()
         env.add_goal(goal)
         # Definition of the obstacle.
         static_obst_dict = {
-            "dim": 3,
             "type": "sphere",
             "geometry": {"position": [1000.0, 0.5, 0.1], "radius": 0.1},
             "low": {'position': [0.2, -0.7, 0.0], 'radius': 0.05},
@@ -132,12 +127,12 @@ class TableTrial(FabricsTrial):
         ]
         obstacles = []
         for i in range(self._number_obstacles):
-            obst_i = SphereObstacle(name="staticObst", contentDict=static_obst_dict)
+            obst_i = SphereObstacle(name="staticObst", content_dict=static_obst_dict)
             if shuffle:
                 obst_i.shuffle()
                 while np.linalg.norm(
                         np.array(obst_i.position()[0:2])
-                        - np.array(goal.primeGoal().position()[0:2])
+                        - np.array(goal.primary_goal().position()[0:2])
                     ) < 0.15:
                     obst_i.shuffle()
             else:
@@ -149,18 +144,18 @@ class TableTrial(FabricsTrial):
         return env, obstacles, goal
 
     def evaluate_distance_to_goal(self, q: np.ndarray):
-        sub_goal_0_position = np.array(self._goal.subGoals()[0].position())
-        fk = self._generic_fk.fk(q, self._goal.subGoals()[0].parentLink(), self._goal.subGoals()[0].childLink(), positionOnly=True)
+        sub_goal_0_position = np.array(self._goal.sub_goals()[0].position())
+        fk = self._generic_fk.fk(q, self._goal.sub_goals()[0].parent_link(), self._goal.sub_goals()[0].child_link(), positionOnly=True)
         return np.linalg.norm(sub_goal_0_position - fk) / self._initial_distance_to_goal_0 
 
 
     def set_goal_arguments(self, q0: np.ndarray, goal:GoalComposition, arguments):
         self._goal = goal
-        sub_goal_0_position = np.array(goal.subGoals()[0].position())
-        sub_goal_1_position = np.array(goal.subGoals()[1].position())
-        sub_goal_1_quaternion = quaternionic.array(goal.subGoals()[1].angle())
+        sub_goal_0_position = np.array(goal.sub_goals()[0].position())
+        sub_goal_1_position = np.array(goal.sub_goals()[1].position())
+        sub_goal_1_quaternion = quaternionic.array(goal.sub_goals()[1].angle())
         sub_goal_1_rotation_matrix = sub_goal_1_quaternion.to_rotation_matrix
-        fk_0 = self._generic_fk.fk(q0, goal.subGoals()[0].parentLink(), goal.subGoals()[0].childLink(), positionOnly=True)
+        fk_0 = self._generic_fk.fk(q0, goal.sub_goals()[0].parent_link(), goal.sub_goals()[0].child_link(), positionOnly=True)
         self._initial_distance_to_goal_0 = np.linalg.norm(sub_goal_0_position - fk_0)
         #self._initial_distance_to_goal_0 = 1.0
         arguments['x_goal_0'] = sub_goal_0_position

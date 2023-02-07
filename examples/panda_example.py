@@ -1,5 +1,4 @@
 from optuna_fabrics.tune.panda_ring_trial import PandaRingTrial
-from optuna_fabrics.tune.panda_reach_trial import PandaReachTrial
 from optuna_fabrics.tune.panda_table_trial import PandaTableTrial
 from optuna_fabrics.tune.fabrics_study import FabricsStudy
 

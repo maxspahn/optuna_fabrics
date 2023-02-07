@@ -1,11 +1,10 @@
 import numpy as np
-from MotionPlanningGoal.goalComposition import GoalComposition
 import quaternionic
 
 from optuna_fabrics.tune.albert_trial import AlbertTrial
 from optuna_fabrics.tune.ring_trial import RingTrial
-from MotionPlanningGoal.goalComposition import GoalComposition
-from MotionPlanningEnv.sphereObstacle import SphereObstacle
+from mpscenes.goals.goal_composition import GoalComposition
+from mpscenes.obstacles.sphere_obstacle import SphereObstacle
 
 def generate_random_orientation(mean, rotation=0.0, tilting=0.0):
     """
@@ -42,7 +41,7 @@ class AlbertRingTrial(AlbertTrial, RingTrial):
             "subgoal0": {
                 "m": 3,
                 "w": 0.0,
-                "prime": True,
+                "is_primary_goal": True,
                 "indices": [0, 1, 2],
                 "parent_link": self._sub_goal_0_links[0],
                 "child_link": self._sub_goal_0_links[1],
@@ -55,7 +54,7 @@ class AlbertRingTrial(AlbertTrial, RingTrial):
             "subgoal1": {
                 "m": 3,
                 "w": 3.0,
-                "prime": False,
+                "is_primary_goal": False,
                 "indices": [0, 1, 2],
                 "parent_link": self._sub_goal_1_links[0],
                 "child_link": self._sub_goal_1_links[1],
@@ -65,7 +64,7 @@ class AlbertRingTrial(AlbertTrial, RingTrial):
                 "type": "staticSubGoal",
             }
         }
-        goal = GoalComposition(name="goal", contentDict=goal_dict)
+        goal = GoalComposition(name="goal", content_dict=goal_dict)
         env.add_goal(goal)
         # Definition of the obstacle.
         radius_ring = 0.31
@@ -73,7 +72,7 @@ class AlbertRingTrial(AlbertTrial, RingTrial):
         ring_orientation = generate_random_orientation(goal_orientation, rotation=0.1, tilting=0.1)
         #goal_orientation = np.random.random(4).tolist()
         rotation_matrix_ring = quaternionic.array(ring_orientation).to_rotation_matrix
-        whole_position = goal.primeGoal().position()
+        whole_position = goal.is_primary_goalGoal().position()
         for i in range(self._obstacle_resolution + 1):
             angle = i/self._obstacle_resolution * 2.*np.pi
             origin_position = [
@@ -87,7 +86,7 @@ class AlbertRingTrial(AlbertTrial, RingTrial):
                 "type": "sphere",
                 "geometry": {"position": position.tolist(), "radius": 0.1},
             }
-            obstacles.append(SphereObstacle(name="staticObst", contentDict=static_obst_dict))
+            obstacles.append(SphereObstacle(name="staticObst", content_dict=static_obst_dict))
         for obst in obstacles:
             env.add_obstacle(obst)
         return env, obstacles, goal

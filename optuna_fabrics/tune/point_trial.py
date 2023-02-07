@@ -5,8 +5,8 @@ import optuna
 import os
 import warnings
 
-from MotionPlanningGoal.goalComposition import GoalComposition
-from MotionPlanningEnv.sphereObstacle import SphereObstacle
+from mpscenes.goals.goal_composition import GoalComposition
+from mpscenes.obstacles.sphere_obstacle import SphereObstacle
 
 import numpy as np
 from optuna_fabrics.planner.symbolic_planner import SymbolicFabricPlanner
@@ -15,8 +15,6 @@ from fabrics.planner.serialized_planner import SerializedFabricPlanner
 from forwardkinematics.urdfFks.generic_urdf_fk import GenericURDFFk
 
 from optuna_fabrics.tune.fabrics_trial import FabricsTrial
-
-import planarenvs.point_robot
 
 
 logging.basicConfig(level=logging.INFO)
@@ -53,7 +51,7 @@ class PointTrial(FabricsTrial):
         }
         obstacles = []
         for i in range(self._number_obstacles):
-            obst_i = SphereObstacle(name="staticObst", contentDict=static_obst_dict)
+            obst_i = SphereObstacle(name="staticObst", content_dict=static_obst_dict)
             if shuffle:
                 obst_i.shuffle()
             obstacles.append(obst_i)
@@ -62,7 +60,7 @@ class PointTrial(FabricsTrial):
             "subgoal0": {
                 "m": 2,
                 "w": 1.0,
-                "prime": True,
+                "is_primary_goal": True,
                 "indices": [0, 1],
                 "parent_link": 0,
                 "child_link": 2,
@@ -73,7 +71,7 @@ class PointTrial(FabricsTrial):
                 "type": "staticSubGoal",
             }
         }
-        goal = GoalComposition(name="goal", contentDict=goal_dict)
+        goal = GoalComposition(name="goal", content_dict=goal_dict)
         if shuffle:
             goal.shuffle()
         env.add_goal(goal)
@@ -86,7 +84,7 @@ class PointTrial(FabricsTrial):
             "subgoal0": {
                 "m": 2,
                 "w": 1.0,
-                "prime": True,
+                "is_primary_goal": True,
                 "indices": [0, 1],
                 "parent_link": 0,
                 "child_link": 2,
@@ -97,7 +95,7 @@ class PointTrial(FabricsTrial):
                 "type": "staticSubGoal",
             }
         }
-        goal = GoalComposition(name="goal", contentDict=goal_dict)
+        goal = GoalComposition(name="goal", content_dict=goal_dict)
         return goal
 
 

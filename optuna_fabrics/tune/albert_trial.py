@@ -6,8 +6,8 @@ import os
 import warnings
 from abc import abstractmethod
 
-from MotionPlanningGoal.goalComposition import GoalComposition
-from MotionPlanningEnv.sphereObstacle import SphereObstacle
+from mpscenes.goals.goal_composition import GoalComposition
+from mpscenes.obstacles.sphere_obstacle import SphereObstacle
 
 import numpy as np
 from optuna_fabrics.planner.nonholonomic_symbolic_planner import NonHolonomicSymbolicFabricPlanner
