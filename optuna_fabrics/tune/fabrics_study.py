@@ -126,17 +126,17 @@ class FabricsStudy(object):
 
 
     def show_history(self):
-            fig1 = plot_optimization_history(self._study)
-            #fig2 = plot_param_importances(self._study)
-            #fig.update_layout(
-            #    font=dict(
-            #        family="Serif",
-            #        size=30,
-            #        color="black"
-            #    )
-            #)
-            fig1.show()
-            #fig2.show()
+        fig1 = plot_optimization_history(self._study)
+        fig2 = plot_param_importances(self._study)
+        #fig.update_layout(
+        #    font=dict(
+        #        family="Serif",
+        #        size=30,
+        #        color="black"
+        #    )
+        #)
+        fig1.show()
+        fig2.show()
 
     def initialize_study(self) -> None:
         if self._input_file:
