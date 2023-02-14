@@ -5,15 +5,16 @@ description = ""
 authors = ["Max Spahn <m.spahn@tudelft.nl>"]
 
 [tool.poetry.dependencies]
-python = "^3.6.2,<3.10"
-optuna = "^2.10.0"
+python = "^3.8,<3.10"
+optuna = "^2.10"
 plotly = "^5.8.0"
-fabrics = {path = "../fabrics"}
 joblib = "^1.1.0"
 matplotlib = "^3.1"
-sklearn = "^0.0"
 planarenvs = "^1.0.1"
-urdfenvs = {path = "../gym/env/urdfEnvs"}
+urdfenvs = "^0.5.1"
+fabrics = {path = "../../../../research/code/fabrics"}
+scikit-learn = "^1.2.1"
+
 
 [tool.poetry.dev-dependencies]
 

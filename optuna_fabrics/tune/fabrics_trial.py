@@ -1,33 +1,61 @@
 from abc import abstractmethod
 from typing import Dict, Any
-from MotionPlanningGoal.goalComposition import GoalComposition
 from optuna_fabrics.planner.symbolic_planner import SymbolicFabricPlanner
+from mpscenes.goals.goal_composition import GoalComposition
 import gym
 import logging
 import time
 import warnings
-from urdfenvs.generic_urdf_reacher.envs.acc import GenericUrdfReacherAccEnv
 import optuna
 import numpy as np
+from numpy.random import default_rng
 import casadi as ca
+
+from urdfenvs.robots.generic_urdf import GenericUrdfReacher
 
 
 class FabricsTrial(object):
-    def __init__(self, weights = None):
+    def __init__(self, weights: dict = None) -> None:
         self._weights = {"path_length": 0.4, "time_to_goal": 0.4, "obstacles": 0.2}
         self._maximum_seconds = 30
         self._dt = 0.05
+        self.set_search_space()
         if weights:
             self._weights = weights
 
-    def initialize_environment(self, render=True):
+    def initialize_environment(self, render: bool=True):
         """
         Initializes the simulation environment.
         """
-        env: GenericUrdfReacherAccEnv = gym.make(
-            "generic-urdf-reacher-acc-v0", dt=self._dt, urdf=self._urdf_file, render=render
+        robots = [
+            GenericUrdfReacher(urdf=self._urdf_file, mode="acc"),
+        ]
+        env = gym.make(
+            "urdf-env-v0",
+            dt=self._dt, robots=robots, render=render
         )
         return env
+
+    def set_search_space(self) -> None:
+        self._search_space = {}
+        self._search_space['exp_geo_obst_leaf'] = {'low': 1, 'high': 5, 'int': True, 'log': False}
+        self._search_space['exp_geo_self_leaf'] = {'low': 1, 'high': 5, 'int': True, 'log': False}
+        self._search_space['exp_geo_limit_leaf'] = {'low': 1, 'high': 5, 'int': True, 'log': False}
+        self._search_space['exp_fin_obst_leaf'] = {'low': 1, 'high': 5, 'int': True, 'log': False}
+        self._search_space['exp_fin_self_leaf'] = {'low': 1, 'high': 5, 'int': True, 'log': False}
+        self._search_space['exp_fin_limit_leaf'] = {'low': 1, 'high': 5, 'int': True, 'log': False}
+        self._search_space['k_geo_obst_leaf'] = {'low': 0.01, 'high': 1, 'int': False, 'log': True}
+        self._search_space['k_geo_self_leaf'] = {'low': 0.01, 'high': 1, 'int': False, 'log': True}
+        self._search_space['k_geo_limit_leaf'] = {'low': 0.01, 'high': 1, 'int': False, 'log': True}
+        self._search_space['k_fin_obst_leaf'] = {'low': 0.01, 'high': 1, 'int': False, 'log': True}
+        self._search_space['k_fin_self_leaf'] = {'low': 0.01, 'high': 1, 'int': False, 'log': True}
+        self._search_space['k_fin_limit_leaf'] = {'low': 0.01, 'high': 1, 'int': False, 'log': True}
+        self._search_space['alpha_b_damper'] = {'low': 0.0, 'high': 1, 'int': False, 'log': False}
+        self._search_space['base_inertia'] = {'low': 0.01, 'high': 1.0, 'int': False, 'log': False}
+        self._search_space['beta_distant_damper'] = {'low': 0.0, 'high': 1.0, 'int': False, 'log': False}
+        self._search_space['beta_close_damper'] = {'low': 5.0, 'high': 20.0, 'int': False, 'log': False}
+        self._search_space['radius_shift_damper'] = {'low': 0.01, 'high': 0.1, 'int': False, 'log': False}
+        self._search_space['ex_factor'] = {'low': 1.0, 'high': 30.0, 'int': False, 'log': False}
 
     @abstractmethod
     def set_planner(self, render=True):
@@ -35,6 +63,15 @@ class FabricsTrial(object):
 
     def total_costs(self, costs: dict):
         return sum([self._weights[i] * costs[i] for i in self._weights])
+
+    def random_parameters(self) -> dict:
+        parameters = {}
+        for name, space in self._search_space.items():
+            if space['int']:
+                parameters[name] = np.random.randint(space['low'], space['high'])
+            else:
+                parameters[name] = space['low'] + np.random.random() * (space['high'] - space['low'])
+        return parameters
 
     def manual_parameters(self) -> dict:
         return {
@@ -59,45 +96,38 @@ class FabricsTrial(object):
             "ex_factor": 15.0,
         }
 
-    def sample_fabrics_params_uniform(self, trial: optuna.trial.Trial) -> Dict[str, Any]:
-        exp_geo_obst_leaf = trial.suggest_int("exp_geo_obst_leaf", 1, 5, log=False)
-        k_geo_obst_leaf = trial.suggest_float("k_geo_obst_leaf", 0.01, 1, log=True)
-        exp_fin_obst_leaf = trial.suggest_int("exp_fin_obst_leaf", 1, 5, log=False)
-        k_fin_obst_leaf = trial.suggest_float("k_fin_obst_leaf", 0.01, 1, log=True)
-        exp_geo_self_leaf = trial.suggest_int("exp_geo_self_leaf", 1, 5, log=False)
-        k_geo_self_leaf = trial.suggest_float("k_geo_self_leaf", 0.01, 1, log=True)
-        exp_fin_self_leaf = trial.suggest_int("exp_fin_self_leaf", 1, 5, log=False)
-        k_fin_self_leaf = trial.suggest_float("k_fin_self_leaf", 0.01, 1, log=True)
-        exp_geo_limit_leaf = trial.suggest_int("exp_geo_limit_leaf", 1, 1, log=False)
-        k_geo_limit_leaf = trial.suggest_float("k_geo_limit_leaf", 0.01, 0.2, log=True)
-        exp_fin_limit_leaf = trial.suggest_int("exp_fin_limit_leaf", 1, 5, log=False)
-        k_fin_limit_leaf = trial.suggest_float("k_fin_limit_leaf", 0.01, 0.2, log=True)
-        base_inertia = trial.suggest_float("base_inertia", 0.01, 1.0, log=False)
-        alpha_b_damper = trial.suggest_float('alpha_b_damper', 0, 1.0, log=False)
-        beta_distant_damper = trial.suggest_float('beta_distant_damper', 0, 1.0, log=False)
-        beta_close_damper = trial.suggest_float('beta_close_damper', 5, 20.0, log=False)
-        radius_shift_damper = trial.suggest_float('radius_shift_damper', 0.01, 0.1, log=False)
-        ex_factor = trial.suggest_float("ex_factor", 1.0, 30.0, log=False)
+    def caspar_parameters(self) -> dict:
         return {
-            "exp_geo_obst_leaf": exp_geo_obst_leaf,
-            "k_geo_obst_leaf": k_geo_obst_leaf,
-            "exp_fin_obst_leaf": exp_fin_obst_leaf,
-            "k_fin_obst_leaf": k_fin_obst_leaf,
-            "exp_geo_self_leaf": exp_geo_self_leaf,
-            "k_geo_self_leaf": k_geo_self_leaf,
-            "exp_fin_self_leaf": exp_fin_self_leaf,
-            "k_fin_self_leaf": k_fin_self_leaf,
-            "exp_geo_limit_leaf": exp_geo_limit_leaf,
-            "k_geo_limit_leaf": k_geo_limit_leaf,
-            "exp_fin_limit_leaf": exp_fin_limit_leaf,
-            "k_fin_limit_leaf": k_fin_limit_leaf,
-            "base_inertia": base_inertia,
-            "alpha_b_damper": alpha_b_damper,
-            "beta_close_damper": beta_close_damper,
-            "radius_shift_damper": radius_shift_damper,
-            "beta_distant_damper": beta_distant_damper,
-            "ex_factor": ex_factor,
+            "exp_geo_obst_leaf": 2,         #[1, 5]
+            "exp_geo_self_leaf": 2,         #[1, 5]
+            "exp_geo_limit_leaf": 2,        #[1, 5]
+            "exp_fin_obst_leaf": 2,         #[1, 5]
+            "exp_fin_self_leaf": 2,         #[1, 1]
+            "exp_fin_limit_leaf": 2,        #[1, 5]
+            "k_geo_obst_leaf": 0.01,        #[0.01, 1]
+            "k_geo_self_leaf": 0.01,        #[0.01, 1]
+            "k_geo_limit_leaf": 0.01,       #[0.01, 1]
+            "k_fin_self_leaf": 0.01,        #[0.01, 1]
+            "k_fin_obst_leaf": 0.01,        #[0.01, 1]
+            "k_fin_limit_leaf": 0.01,       #[0.01, 1]
+            "base_inertia": 0.50,           #[0, 1]
+            "alpha_b_damper" : 0.7,         #[0, 1]
+            "beta_distant_damper" : 0.,     #[0, 1]
+            "beta_close_damper" : 9,        #[5, 20]
+            "radius_shift_damper" : 0.050,  #[0.01, 0.1]
+            "ex_factor": 30.0,              #[1, 30]
         }
+
+
+    def sample_fabrics_params_uniform(self, trial: optuna.trial.Trial) -> Dict[str, Any]:
+
+        parameters = {}
+        for name, space in self._search_space.items():
+            if space['int']:
+                parameters[name] = trial.suggest_int(name, space['low'], space['high'], log=space['log'])
+            else:
+                parameters[name] = trial.suggest_float(name, space['low'], space['high'], log=space['log'])
+        return parameters
 
     def set_collision_arguments(self, arguments: dict):
         for link in self._collision_links:
@@ -141,10 +171,17 @@ class FabricsTrial(object):
     def set_goal_arguments(self, q0: np.ndarray, goal:GoalComposition, arguments):
         pass
 
+    def extract_joint_states(self, ob: dict):
+        if 'joint_state' in ob['robot_0']:
+            return ob['robot_0']['joint_state']['position'], ob['robot_0']['joint_state']['velocity']
+        else:
+            return ob['x'], ob['xdot']
+
+
     def run(self, params, planner: SymbolicFabricPlanner, obstacles, ob, goal: GoalComposition, env):
         # Start the simulation
         logging.info("Starting simulation")
-        q0 = ob['joint_state']['position']
+        q0 = self.extract_joint_states(ob)[0]
         arguments = {}
         self.set_collision_arguments(arguments)
         self.set_goal_arguments(q0, goal, arguments)
@@ -157,8 +194,8 @@ class FabricsTrial(object):
         while env.t() < self._maximum_seconds:
             t0 = time.perf_counter()
             action = planner.compute_action(
-                q=ob["joint_state"]['position'],
-                qdot=ob["joint_state"]['velocity'],
+                q=self.extract_joint_states(ob)[0],
+                qdot=self.extract_joint_states(ob)[1],
                 **arguments,
             )
             t1 = time.perf_counter()
@@ -170,7 +207,7 @@ class FabricsTrial(object):
             except Exception as e:
                 logging.warning(e)
                 return {"path_length": 1.0, "time_to_goal": 1.0, "obstacles": 1.0}
-            q = ob['joint_state']['position']
+            q = self.extract_joint_states(ob)[0]
             t2 = time.perf_counter()
             path_length += np.linalg.norm(q - x_old)
             x_old = q

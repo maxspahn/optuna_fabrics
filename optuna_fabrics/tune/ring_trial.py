@@ -5,8 +5,8 @@ import optuna
 import os
 import warnings
 
-from MotionPlanningGoal.goalComposition import GoalComposition
-from MotionPlanningEnv.sphereObstacle import SphereObstacle
+from mpscenes.goals.goal_composition import GoalComposition
+from mpscenes.obstacles.sphere_obstacle import SphereObstacle
 
 import numpy as np
 from optuna_fabrics.planner.symbolic_planner import SymbolicFabricPlanner
@@ -50,9 +50,8 @@ class RingTrial(FabricsTrial):
     def dummy_goal(self):
         goal_dict = {
             "subgoal0": {
-                "m": 3,
-                "w": 0.0,
-                "prime": True,
+                "weight": 0.0,
+                "is_primary_goal": True,
                 "indices": [0, 1, 2],
                 "parent_link": self._sub_goal_0_links[0],
                 "child_link": self._sub_goal_0_links[1],
@@ -63,9 +62,8 @@ class RingTrial(FabricsTrial):
                 "type": "staticSubGoal",
             },
             "subgoal1": {
-                "m": 3,
-                "w": 3.0,
-                "prime": False,
+                "weight": 3.0,
+                "is_primary_goal": False,
                 "indices": [0, 1, 2],
                 "parent_link": self._sub_goal_1_links[0],
                 "child_link": self._sub_goal_1_links[1],
@@ -75,13 +73,13 @@ class RingTrial(FabricsTrial):
                 "type": "staticSubGoal",
             }
         }
-        return GoalComposition(name="goal", contentDict=goal_dict)
+        return GoalComposition(name="goal", content_dict=goal_dict)
 
 
-    def shuffle_env(self, env, randomize=True):
+    def shuffle_env(self, env, shuffle=True):
         # Definition of the goal.
         mean = [0.0, 0.707, 0.0, 0.0]
-        if randomize:
+        if shuffle:
             goal_orientation = generate_random_orientation(mean, rotation=0.1, tilting=0.1)
             goal_position = generate_random_position().tolist()
             ring_orientation = generate_random_orientation(goal_orientation, rotation=0.1, tilting=0.1)
@@ -92,9 +90,8 @@ class RingTrial(FabricsTrial):
             ring_orientation = [-0.10, 0.71, -0.20, 0.0]
         goal_dict = {
             "subgoal0": {
-                "m": 3,
-                "w": 0.0,
-                "prime": True,
+                "weight": 0.0,
+                "is_primary_goal": True,
                 "indices": [0, 1, 2],
                 "parent_link": self._sub_goal_0_links[0],
                 "child_link": self._sub_goal_0_links[1],
@@ -105,9 +102,8 @@ class RingTrial(FabricsTrial):
                 "type": "staticSubGoal",
             },
             "subgoal1": {
-                "m": 3,
-                "w": 3.0,
-                "prime": False,
+                "weight": 3.0,
+                "is_primary_goal": False,
                 "indices": [0, 1, 2],
                 "parent_link": self._sub_goal_1_links[0],
                 "child_link": self._sub_goal_1_links[1],
@@ -117,13 +113,13 @@ class RingTrial(FabricsTrial):
                 "type": "staticSubGoal",
             }
         }
-        goal = GoalComposition(name="goal", contentDict=goal_dict)
+        goal = GoalComposition(name="goal", content_dict=goal_dict)
         env.add_goal(goal)
         # Definition of the obstacle.
         radius_ring = 0.27
         obstacles = []
         rotation_matrix_ring = quaternionic.array(ring_orientation).to_rotation_matrix
-        whole_position = goal.primeGoal().position()
+        whole_position = goal.primary_goal().position()
         for i in range(self._obstacle_resolution + 1):
             angle = i/self._obstacle_resolution * 2.*np.pi
             origin_position = [
@@ -133,28 +129,27 @@ class RingTrial(FabricsTrial):
             ]
             position = np.dot(np.transpose(rotation_matrix_ring), origin_position) + whole_position
             static_obst_dict = {
-                "dim": 3,
                 "type": "sphere",
                 "geometry": {"position": position.tolist(), "radius": 0.08},
             }
-            obstacles.append(SphereObstacle(name="staticObst", contentDict=static_obst_dict))
+            obstacles.append(SphereObstacle(name="staticObst", content_dict=static_obst_dict))
         for obst in obstacles:
             env.add_obstacle(obst)
         return env, obstacles, goal
 
     def evaluate_distance_to_goal(self, q: np.ndarray):
-        sub_goal_0_position = np.array(self._goal.subGoals()[0].position())
-        fk = self._generic_fk.fk(q, self._goal.subGoals()[0].parentLink(), self._goal.subGoals()[0].childLink(), positionOnly=True)
+        sub_goal_0_position = np.array(self._goal.sub_goals()[0].position())
+        fk = self._generic_fk.fk(q, self._goal.sub_goals()[0].parent_link(), self._goal.sub_goals()[0].child_link(), positionOnly=True)
         return np.linalg.norm(sub_goal_0_position - fk) / self._initial_distance_to_goal_0 
 
 
     def set_goal_arguments(self, q0: np.ndarray, goal:GoalComposition, arguments):
         self._goal = goal
-        sub_goal_0_position = np.array(goal.subGoals()[0].position())
-        sub_goal_1_position = np.array(goal.subGoals()[1].position())
-        sub_goal_1_quaternion = quaternionic.array(goal.subGoals()[1].angle())
+        sub_goal_0_position = np.array(goal.sub_goals()[0].position())
+        sub_goal_1_position = np.array(goal.sub_goals()[1].position())
+        sub_goal_1_quaternion = quaternionic.array(goal.sub_goals()[1].angle())
         sub_goal_1_rotation_matrix = sub_goal_1_quaternion.to_rotation_matrix
-        fk_0 = self._generic_fk.fk(q0, goal.subGoals()[0].parentLink(), goal.subGoals()[0].childLink(), positionOnly=True)
+        fk_0 = self._generic_fk.fk(q0, goal.sub_goals()[0].parent_link(), goal.sub_goals()[0].child_link(), positionOnly=True)
         self._initial_distance_to_goal_0 = np.linalg.norm(sub_goal_0_position - fk_0)
         #self._initial_distance_to_goal_0 = 1.0
         arguments['x_goal_0'] = sub_goal_0_position

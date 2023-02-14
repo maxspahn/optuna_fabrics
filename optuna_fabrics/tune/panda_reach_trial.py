@@ -5,8 +5,8 @@ import optuna
 import os
 import warnings
 
-from MotionPlanningGoal.goalComposition import GoalComposition
-from MotionPlanningEnv.sphereObstacle import SphereObstacle
+from mpscenes.goals.goal_composition import GoalComposition
+from mpscenes.obstacles.sphere_obstacle import SphereObstacle
 
 import numpy as np
 from optuna_fabrics.planner.symbolic_planner import SymbolicFabricPlanner
@@ -55,7 +55,7 @@ class PandaReachTrial(PandaTrial):
         }
         obstacles = []
         for i in range(self._number_obstacles):
-            obst_i = SphereObstacle(name="staticObst", contentDict=static_obst_dict)
+            obst_i = SphereObstacle(name="staticObst", content_dict=static_obst_dict)
             if shuffle:
                 obst_i.shuffle()
             obstacles.append(obst_i)
@@ -64,7 +64,7 @@ class PandaReachTrial(PandaTrial):
             "subgoal0": {
                 "m": 3,
                 "w": 1.0,
-                "prime": True,
+                "is_primary_goal": True,
                 "indices": [0, 1, 2],
                 "parent_link": "panda_link0",
                 "child_link": "panda_hand",
@@ -75,7 +75,7 @@ class PandaReachTrial(PandaTrial):
                 "type": "staticSubGoal",
             },
         }
-        goal = GoalComposition(name="goal", contentDict=goal_dict)
+        goal = GoalComposition(name="goal", content_dict=goal_dict)
         if shuffle:
             goal.shuffle()
         env.add_goal(goal)

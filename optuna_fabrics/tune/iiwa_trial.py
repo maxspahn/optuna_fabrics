@@ -6,14 +6,13 @@ import os
 import warnings
 from abc import abstractmethod
 
-from MotionPlanningGoal.goalComposition import GoalComposition
-from MotionPlanningEnv.sphereObstacle import SphereObstacle
+from mpscenes.goals.goal_composition import GoalComposition
+from mpscenes.obstacles.sphere_obstacle import SphereObstacle
 
 import numpy as np
 from optuna_fabrics.planner.symbolic_planner import SymbolicFabricPlanner
 from fabrics.planner.serialized_planner import SerializedFabricPlanner
 
-import urdfenvs.generic_urdf_reacher
 
 from forwardkinematics.urdfFks.generic_urdf_fk import GenericURDFFk
 

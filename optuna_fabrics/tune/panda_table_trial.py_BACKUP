@@ -38,7 +38,7 @@ class PandaTableTrial(PandaTrial):
         }
         obstacles = []
         for i in range(self._number_obstacles):
-            obst_i = SphereObstacle(name="staticObst", contentDict=static_obst_dict)
+            obst_i = SphereObstacle(name="staticObst", content_dict=static_obst_dict)
             if shuffle:
                 obst_i.shuffle()
             obstacles.append(obst_i)
@@ -46,7 +46,7 @@ class PandaTableTrial(PandaTrial):
             "subgoal0": {
                 "m": 3,
                 "w": 1.0,
-                "prime": True,
+                "is_primary_goal": True,
                 "indices": [0, 1, 2],
                 "parent_link": self._sub_goal_0_links[0],
                 "child_link": self._sub_goal_0_links[1],
@@ -59,7 +59,7 @@ class PandaTableTrial(PandaTrial):
             "subgoal1": {
                 "m": 3,
                 "w": 3.0,
-                "prime": False,
+                "is_primary_goal": False,
                 "indices": [0, 1, 2],
                 "parent_link": self._sub_goal_1_links[0],
                 "child_link": self._sub_goal_1_links[1],
@@ -72,7 +72,7 @@ class PandaTableTrial(PandaTrial):
                 "type": "staticSubGoal",
             }
         }
-        goal = GoalComposition(name="goal", contentDict=goal_dict)
+        goal = GoalComposition(name="goal", content_dict=goal_dict)
         if shuffle:
             goal.shuffle()
         env.add_goal(goal)
