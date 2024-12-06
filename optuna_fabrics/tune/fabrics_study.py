@@ -104,7 +104,7 @@ class FabricsStudy(object):
         planner = self._trial.set_planner()
         for i in range(self._number_trials):
             q0 = self._trial.q0()
-            ob = env.reset(pos=q0, video_file_name=self._video_name)
+            ob = env.reset(pos=q0)
             np.random.seed(0)
             env, obstacles, goal = self._trial.shuffle_env(env, shuffle=self._shuffle)
             self._trial.create_collision_metric(obstacles)
